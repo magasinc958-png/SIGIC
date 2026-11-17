@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  RESIDENT
+  ADMIN
+  DIRECTOR
+  STAFF
+}
+
+enum IncidentStatus {
+  PENDING
+  IN_PROGRESS
+  ATTENDED
+  RESOLVED
+  REJECTED
+}
+
+model User {
+  id                String            @id @default(uuid())
+  name              String
+  email             String            @unique
+  passwordHash      String
+  role              Role              @default(RESIDENT)
+  active            Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  incidents         Incident[]        @relation("IncidentReporter")
+  assignedIncidents Incident[]        @relation("IncidentAssignee")
+  history           IncidentHistory[]
+  announcements     Announcement[]
+
+  @@index([role, active])
+}
+
+model Category {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  incidents Incident[]
+}
+
+model Incident {
+  id          String            @id @default(uuid())
+  title       String
+  description String
+  address     String
+  latitude    Float?
+  longitude   Float?
+  status      IncidentStatus    @default(PENDING)
+  dueAt       DateTime?
+  resolvedAt  DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  reporterId  String
+  categoryId  String
+  assigneeId  String?
+  reporter    User              @relation("IncidentReporter", fields: [reporterId], references: [id])
+  category    Category          @relation(fields: [categoryId], references: [id])
+  assignee    User?             @relation("IncidentAssignee", fields: [assigneeId], references: [id])
+  history     IncidentHistory[]
+
+  @@index([reporterId, createdAt])
+  @@index([status, createdAt])
+  @@index([categoryId])
+}
+
+model IncidentHistory {
+  id         String          @id @default(uuid())
+  incidentId String
+  actorId    String
+  action     String
+  fromStatus IncidentStatus?
+  toStatus   IncidentStatus?
+  details    String?
+  createdAt  DateTime        @default(now())
+  incident   Incident        @relation(fields: [incidentId], references: [id])
+  actor      User            @relation(fields: [actorId], references: [id])
+
+  @@index([incidentId, createdAt])
+}
+
+model Announcement {
+  id          String   @id @default(uuid())
+  title       String
+  content     String
+  publishedAt DateTime @default(now())
+  active      Boolean  @default(true)
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+
+  @@index([active, publishedAt])
+}
