@@ -1,0 +1,371 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =====================================================
+// ENUMERACIONES
+// =====================================================
+
+enum EstadoIncidencia {
+  PENDIENTE
+  EN_REVISION
+  ASIGNADA
+  EN_PROCESO
+  ATENDIDA
+  RESUELTA
+  RECHAZADA
+}
+
+enum TipoAccion {
+  CREACION
+  CAMBIO_ESTADO
+  ASIGNACION
+  OBSERVACION
+  CIERRE
+}
+
+enum EstadoActividad {
+  PLANIFICADA
+  EN_PROCESO
+  COMPLETADA
+  CANCELADA
+}
+
+enum PrioridadComunicado {
+  BAJA
+  NORMAL
+  ALTA
+  URGENTE
+}
+
+// =====================================================
+// 1. USUARIO
+// =====================================================
+
+model Usuario {
+  idUsuario          BigInt   @id @default(autoincrement()) @map("id_usuario")
+  nombre             String   @db.VarChar(120)
+  email              String   @unique @db.VarChar(150)
+  telefono           String?  @db.VarChar(25)
+  contrasenaHash     String   @map("contrasena_hash") @db.VarChar(255)
+  activo             Boolean  @default(true)
+  fechaCreacion      DateTime @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
+  fechaActualizacion DateTime @updatedAt @map("fecha_actualizacion") @db.Timestamptz(6)
+
+  residente     Residente?
+  administrador Administrador?
+  directiva     Directiva?
+
+  historial          HistorialIncidencia[]
+  actividadesCreadas Actividad[]
+  auditorias         AuditoriaSistema[]
+
+  @@map("usuario")
+}
+
+// =====================================================
+// 2. RESIDENTE
+// =====================================================
+
+model Residente {
+  idUsuario           BigInt  @id @map("id_usuario")
+  manzana             String  @db.VarChar(50)
+  villa               String  @db.VarChar(50)
+  numeroCasa          String? @map("numero_casa") @db.VarChar(50)
+  calle               String? @db.VarChar(100)
+  referenciaAdicional String? @map("referencia_adicional") @db.VarChar(255)
+
+  usuario Usuario @relation(fields: [idUsuario], references: [idUsuario], onDelete: Restrict)
+
+  incidencias Incidencia[]
+
+  @@map("residente")
+}
+
+// =====================================================
+// 3. ADMINISTRADOR
+// =====================================================
+
+model Administrador {
+  idUsuario BigInt @id @map("id_usuario")
+
+  usuario Usuario @relation(fields: [idUsuario], references: [idUsuario], onDelete: Restrict)
+
+  incidencias Incidencia[]
+  comunicados Comunicado[]
+
+  @@map("administrador")
+}
+
+// =====================================================
+// 4. DIRECTIVA
+// =====================================================
+
+model Directiva {
+  idUsuario BigInt @id @map("id_usuario")
+  cargo     String @db.VarChar(100)
+
+  usuario Usuario @relation(fields: [idUsuario], references: [idUsuario], onDelete: Restrict)
+
+  @@map("directiva")
+}
+
+// =====================================================
+// 5. AREA OPERATIVA
+// =====================================================
+
+model AreaOperativa {
+  idArea      BigInt  @id @default(autoincrement()) @map("id_area")
+  nombre      String  @unique @db.VarChar(80)
+  descripcion String? @db.VarChar(255)
+
+  personal PersonalOperativo[]
+
+  @@map("area_operativa")
+}
+
+// =====================================================
+// 6. PERSONAL OPERATIVO
+// =====================================================
+
+model PersonalOperativo {
+  idOperativo BigInt  @id @default(autoincrement()) @map("id_operativo")
+  idArea      BigInt  @map("id_area")
+  nombre      String  @db.VarChar(120)
+  telefono    String? @db.VarChar(25)
+  turno       String? @db.VarChar(50)
+  activo      Boolean @default(true)
+
+  area AreaOperativa @relation(fields: [idArea], references: [idArea], onDelete: Restrict)
+
+  incidencias Incidencia[]
+  actividades Actividad[]
+
+  @@index([idArea])
+  @@map("personal_operativo")
+}
+
+// =====================================================
+// 7. TIPO DE INCIDENCIA
+// =====================================================
+
+model TipoIncidencia {
+  idTipo        Int     @id @default(autoincrement()) @map("id_tipo") @db.SmallInt
+  nombre        String  @unique @db.VarChar(50)
+  codigoPrefijo String  @unique @map("codigo_prefijo") @db.VarChar(10)
+  activo        Boolean @default(true)
+
+  incidencias Incidencia[]
+
+  @@map("tipo_incidencia")
+}
+
+// =====================================================
+// 8. INCIDENCIA
+// =====================================================
+
+model Incidencia {
+  idIncidencia BigInt @id @default(autoincrement()) @map("id_incidencia")
+  codigo       String @unique @db.VarChar(25)
+  titulo       String @db.VarChar(160)
+  descripcion  String @db.Text
+
+  idResidente     BigInt  @map("id_residente")
+  idAdministrador BigInt? @map("id_administrador")
+  idOperativo     BigInt? @map("id_operativo")
+  idTipo          Int     @map("id_tipo") @db.SmallInt
+
+  estado EstadoIncidencia @default(PENDIENTE)
+
+  fechaCreacion      DateTime  @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
+  fechaActualizacion DateTime  @updatedAt @map("fecha_actualizacion") @db.Timestamptz(6)
+  fechaObjetivo      DateTime? @map("fecha_objetivo") @db.Timestamptz(6)
+  fechaResolucion    DateTime? @map("fecha_resolucion") @db.Timestamptz(6)
+
+  observacionCierre String? @map("observacion_cierre") @db.Text
+
+  residente Residente @relation(fields: [idResidente], references: [idUsuario], onDelete: Restrict)
+
+  administrador Administrador? @relation(fields: [idAdministrador], references: [idUsuario], onDelete: Restrict)
+
+  operativo PersonalOperativo? @relation(fields: [idOperativo], references: [idOperativo], onDelete: Restrict)
+
+  tipo TipoIncidencia @relation(fields: [idTipo], references: [idTipo], onDelete: Restrict)
+
+  ubicacion   Ubicacion?
+  adjuntos    Adjunto[]
+  historial   HistorialIncidencia[]
+  actividades Actividad[]
+  comunicados Comunicado[]
+
+  @@index([idResidente])
+  @@index([idAdministrador])
+  @@index([idOperativo])
+  @@index([idTipo])
+  @@index([estado, fechaCreacion])
+  @@map("incidencia")
+}
+
+// =====================================================
+// 9. UBICACION
+// =====================================================
+
+model Ubicacion {
+  idUbicacion  BigInt @id @default(autoincrement()) @map("id_ubicacion")
+  idIncidencia BigInt @unique @map("id_incidencia")
+
+  manzana    String? @db.VarChar(50)
+  villa      String? @db.VarChar(50)
+  calle      String? @db.VarChar(100)
+  referencia String? @db.VarChar(255)
+
+  latitud  Decimal? @db.Decimal(10, 8)
+  longitud Decimal? @db.Decimal(11, 8)
+
+  incidencia Incidencia @relation(fields: [idIncidencia], references: [idIncidencia], onDelete: Restrict)
+
+  @@map("ubicacion")
+}
+
+// =====================================================
+// 10. ADJUNTO
+// =====================================================
+
+model Adjunto {
+  idAdjunto    BigInt @id @default(autoincrement()) @map("id_adjunto")
+  idIncidencia BigInt @map("id_incidencia")
+
+  rutaArchivo   String  @map("ruta_archivo") @db.VarChar(500)
+  nombreArchivo String? @map("nombre_archivo") @db.VarChar(255)
+  tipoArchivo   String  @map("tipo_archivo") @db.VarChar(100)
+  tamanoBytes   BigInt  @map("tamano_bytes")
+
+  fechaSubida DateTime @default(now()) @map("fecha_subida") @db.Timestamptz(6)
+
+  incidencia Incidencia @relation(fields: [idIncidencia], references: [idIncidencia], onDelete: Restrict)
+
+  @@index([idIncidencia])
+  @@map("adjunto")
+}
+
+// =====================================================
+// 11. HISTORIAL DE INCIDENCIA
+// =====================================================
+
+model HistorialIncidencia {
+  idHistorial  BigInt @id @default(autoincrement()) @map("id_historial")
+  idIncidencia BigInt @map("id_incidencia")
+  idUsuario    BigInt @map("id_usuario")
+
+  tipoAccion     TipoAccion        @map("tipo_accion")
+  estadoAnterior EstadoIncidencia? @map("estado_anterior")
+  estadoNuevo    EstadoIncidencia? @map("estado_nuevo")
+
+  observacion String?  @db.Text
+  fechaEvento DateTime @default(now()) @map("fecha_evento") @db.Timestamptz(6)
+
+  incidencia Incidencia @relation(fields: [idIncidencia], references: [idIncidencia], onDelete: Restrict)
+
+  usuario Usuario @relation(fields: [idUsuario], references: [idUsuario], onDelete: Restrict)
+
+  @@index([idIncidencia, fechaEvento])
+  @@index([idUsuario])
+  @@map("historial_incidencia")
+}
+
+// =====================================================
+// 12. ACTIVIDAD
+// =====================================================
+
+model Actividad {
+  idActividad      BigInt  @id @default(autoincrement()) @map("id_actividad")
+  idIncidencia     BigInt? @map("id_incidencia")
+  idUsuarioCreador BigInt  @map("id_usuario_creador")
+  idOperativo      BigInt? @map("id_operativo")
+
+  titulo      String          @db.VarChar(160)
+  descripcion String          @db.Text
+  estado      EstadoActividad @default(PLANIFICADA)
+
+  fechaProgramada   DateTime? @map("fecha_programada") @db.Timestamptz(6)
+  fechaInicio       DateTime? @map("fecha_inicio") @db.Timestamptz(6)
+  fechaFinalizacion DateTime? @map("fecha_finalizacion") @db.Timestamptz(6)
+  fechaCreacion     DateTime  @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
+
+  incidencia Incidencia? @relation(fields: [idIncidencia], references: [idIncidencia], onDelete: Restrict)
+
+  usuarioCreador Usuario @relation(fields: [idUsuarioCreador], references: [idUsuario], onDelete: Restrict)
+
+  operativo PersonalOperativo? @relation(fields: [idOperativo], references: [idOperativo], onDelete: Restrict)
+
+  comunicados Comunicado[]
+
+  @@index([idIncidencia])
+  @@index([idUsuarioCreador])
+  @@index([idOperativo])
+  @@index([estado, fechaProgramada])
+  @@map("actividad")
+}
+
+// =====================================================
+// 13. COMUNICADO
+// =====================================================
+
+model Comunicado {
+  idComunicado    BigInt  @id @default(autoincrement()) @map("id_comunicado")
+  idAdministrador BigInt  @map("id_administrador")
+  idIncidencia    BigInt? @map("id_incidencia")
+  idActividad     BigInt? @map("id_actividad")
+
+  titulo    String @db.VarChar(160)
+  contenido String @db.Text
+
+  fechaPublicacion DateTime?           @map("fecha_publicacion") @db.Timestamptz(6)
+  prioridad        PrioridadComunicado @default(NORMAL)
+  activo           Boolean             @default(true)
+
+  administrador Administrador @relation(fields: [idAdministrador], references: [idUsuario], onDelete: Restrict)
+
+  incidencia Incidencia? @relation(fields: [idIncidencia], references: [idIncidencia], onDelete: Restrict)
+
+  actividad Actividad? @relation(fields: [idActividad], references: [idActividad], onDelete: Restrict)
+
+  @@index([idAdministrador])
+  @@index([idIncidencia])
+  @@index([idActividad])
+  @@index([activo, fechaPublicacion])
+  @@map("comunicado")
+}
+
+model AuditoriaSistema {
+  idAuditoria BigInt  @id @default(autoincrement()) @map("id_auditoria")
+  idUsuario   BigInt? @map("id_usuario")
+
+  accion     String  @db.VarChar(80)
+  entidad    String? @db.VarChar(80)
+  idRegistro BigInt? @map("id_registro")
+  resultado  String  @db.VarChar(20)
+  detalle    Json?   @db.JsonB
+
+  direccionIp String? @map("direccion_ip") @db.VarChar(45)
+  userAgent   String? @map("user_agent") @db.Text
+
+  fechaEvento DateTime @default(now()) @map("fecha_evento") @db.Timestamptz(6)
+
+  usuario Usuario? @relation(fields: [idUsuario], references: [idUsuario], onDelete: Restrict)
+
+  @@index([idUsuario, fechaEvento])
+  @@index([entidad, idRegistro])
+  @@index([fechaEvento])
+  @@map("auditoria_sistema")
+}
