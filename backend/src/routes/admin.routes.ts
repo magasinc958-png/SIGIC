@@ -1,6 +1,8 @@
 import { Router } from "express";
 import {
+  EstadoActividad,
   EstadoAsignacion,
+  EstadoIncidencia,
   Prisma,
   RolUsuario,
   TipoAccion
@@ -14,8 +16,13 @@ import {
   assignmentQuerySchema,
   createAreaSchema,
   createAssignmentSchema,
+  createActivitySchema,
+  createObservationSchema,
   createWorkerSchema,
   incidentIdSchema,
+  incidentStatusChangeSchema,
+  assignmentLifecycleSchema,
+  resolveIncidentSchema,
   updateAreaSchema,
   updateWorkerSchema,
   workerIdSchema,
@@ -370,4 +377,410 @@ adminRouter.post("/incidents/:id/assignments", async (request, response) => {
     }
     throw error;
   }
+});
+
+const allowedIncidentTransitions: Record<EstadoIncidencia, readonly EstadoIncidencia[]> = {
+  [EstadoIncidencia.PENDIENTE]: [EstadoIncidencia.EN_REVISION, EstadoIncidencia.ASIGNADA, EstadoIncidencia.RECHAZADA],
+  [EstadoIncidencia.EN_REVISION]: [EstadoIncidencia.ASIGNADA, EstadoIncidencia.EN_PROCESO, EstadoIncidencia.RECHAZADA],
+  [EstadoIncidencia.ASIGNADA]: [EstadoIncidencia.EN_PROCESO, EstadoIncidencia.RECHAZADA],
+  [EstadoIncidencia.EN_PROCESO]: [EstadoIncidencia.ATENDIDA, EstadoIncidencia.RECHAZADA],
+  [EstadoIncidencia.ATENDIDA]: [EstadoIncidencia.EN_PROCESO],
+  [EstadoIncidencia.RESUELTA]: [],
+  [EstadoIncidencia.RECHAZADA]: []
+};
+
+function ensureIncidentTransition(current: EstadoIncidencia, next: EstadoIncidencia): void {
+  if (current === next) throw new HttpError(409, "La incidencia ya tiene ese estado.");
+  if (!allowedIncidentTransitions[current].includes(next)) {
+    throw new HttpError(409, `Transición no permitida: ${current} → ${next}.`);
+  }
+}
+
+adminRouter.patch("/incidents/:id/status", async (request, response) => {
+  const idIncidencia = incidentIdSchema.parse(request.params.id);
+  const input = incidentStatusChangeSchema.parse(request.body);
+  const idUsuario = BigInt(request.user!.id);
+
+  if (input.estado === EstadoIncidencia.RESUELTA) {
+    throw new HttpError(409, "La resolución debe confirmarse mediante el endpoint de cierre administrativo.");
+  }
+
+  try {
+    const incident = await prisma.$transaction(async (transaction) => {
+      const current = await transaction.incidencia.findUnique({
+        where: { idIncidencia },
+        select: { estado: true }
+      });
+      if (!current) throw new HttpError(404, "No se encontró la incidencia solicitada.");
+      ensureIncidentTransition(current.estado, input.estado);
+
+      if (input.estado === EstadoIncidencia.RECHAZADA) {
+        const activeAssignments = await transaction.asignacionIncidencia.count({
+          where: { idIncidencia, estado: EstadoAsignacion.ACTIVA }
+        });
+        if (activeAssignments > 0) {
+          throw new HttpError(409, "No se puede rechazar una incidencia con asignaciones ACTIVAS. Finalízalas explícitamente primero.");
+        }
+      }
+
+      const updated = await transaction.incidencia.update({
+        where: { idIncidencia },
+        data: { estado: input.estado }
+      });
+      await transaction.historialIncidencia.create({
+        data: {
+          idIncidencia,
+          idUsuario,
+          tipoAccion: TipoAccion.CAMBIO_ESTADO,
+          estadoAnterior: current.estado,
+          estadoNuevo: input.estado,
+          observacion: input.observacion ?? null
+        }
+      });
+      return updated;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    response.json({
+      incident: {
+        id: incident.idIncidencia.toString(),
+        codigo: incident.codigo,
+        estado: incident.estado,
+        fechaActualizacion: incident.fechaActualizacion
+      }
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      throw new HttpError(409, "La incidencia cambió simultáneamente. Revisa su estado e inténtalo de nuevo.");
+    }
+    throw error;
+  }
+});
+
+adminRouter.post("/incidents/:id/resolve", async (request, response) => {
+  const idIncidencia = incidentIdSchema.parse(request.params.id);
+  const { observacion } = resolveIncidentSchema.parse(request.body);
+  const idUsuario = BigInt(request.user!.id);
+  const fechaResolucion = new Date();
+
+  try {
+    const incident = await prisma.$transaction(async (transaction) => {
+      const current = await transaction.incidencia.findUnique({
+        where: { idIncidencia },
+        select: { estado: true }
+      });
+      if (!current) throw new HttpError(404, "No se encontró la incidencia solicitada.");
+      if (current.estado !== EstadoIncidencia.ATENDIDA) {
+        throw new HttpError(409, "La incidencia debe estar ATENDIDA antes de confirmarse como RESUELTA.");
+      }
+
+      const activeAssignments = await transaction.asignacionIncidencia.count({
+        where: { idIncidencia, estado: EstadoAsignacion.ACTIVA }
+      });
+      if (activeAssignments > 0) {
+        throw new HttpError(409, "Finaliza o cancela explícitamente las asignaciones activas antes de resolver la incidencia.");
+      }
+
+      const updated = await transaction.incidencia.update({
+        where: { idIncidencia },
+        data: {
+          estado: EstadoIncidencia.RESUELTA,
+          fechaResolucion,
+          observacionCierre: observacion
+        }
+      });
+      await transaction.historialIncidencia.create({
+        data: {
+          idIncidencia,
+          idUsuario,
+          tipoAccion: TipoAccion.CIERRE,
+          estadoAnterior: current.estado,
+          estadoNuevo: EstadoIncidencia.RESUELTA,
+          observacion
+        }
+      });
+      return updated;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    response.json({
+      incident: {
+        id: incident.idIncidencia.toString(),
+        codigo: incident.codigo,
+        estado: incident.estado,
+        fechaResolucion: incident.fechaResolucion,
+        observacionCierre: incident.observacionCierre
+      }
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      throw new HttpError(409, "La incidencia cambió simultáneamente. Revisa sus asignaciones e inténtalo de nuevo.");
+    }
+    throw error;
+  }
+});
+
+adminRouter.patch("/assignments/:id/status", async (request, response) => {
+  const idAsignacion = workerIdSchema.parse(request.params.id);
+  const input = assignmentLifecycleSchema.parse(request.body);
+  const idUsuario = BigInt(request.user!.id);
+  const fechaFin = new Date();
+
+  try {
+    const assignment = await prisma.$transaction(async (transaction) => {
+      const current = await transaction.asignacionIncidencia.findUnique({
+        where: { idAsignacion },
+        include: assignmentInclude
+      });
+      if (!current) throw new HttpError(404, "La asignación no existe.");
+      if (current.estado !== EstadoAsignacion.ACTIVA) {
+        throw new HttpError(409, "La asignación ya fue finalizada y no puede modificarse nuevamente.");
+      }
+
+      const updated = await transaction.asignacionIncidencia.update({
+        where: { idAsignacion },
+        data: {
+          estado: input.estado,
+          fechaFin,
+          observacion: input.observacion ?? current.observacion
+        },
+        include: assignmentInclude
+      });
+      await transaction.historialIncidencia.create({
+        data: {
+          idIncidencia: current.idIncidencia,
+          idUsuario,
+          idArea: current.idArea,
+          idOperativo: current.idOperativo,
+          tipoAccion: TipoAccion.ASIGNACION,
+          observacion: input.observacion ?? `Asignación ${input.estado.toLowerCase()}.`
+        }
+      });
+      return updated;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    response.json({ assignment: serializeAssignment(assignment) });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      throw new HttpError(409, "La asignación cambió simultáneamente. Inténtalo de nuevo.");
+    }
+    throw error;
+  }
+});
+
+adminRouter.post("/assignments/:id/reassign", async (request, response) => {
+  const idAsignacion = workerIdSchema.parse(request.params.id);
+  const input = createAssignmentSchema.parse(request.body);
+  const idAdministrador = BigInt(request.user!.id);
+  const fechaFin = new Date();
+  const fechaInicio = new Date(fechaFin);
+
+  try {
+    const result = await prisma.$transaction(async (transaction) => {
+      const current = await transaction.asignacionIncidencia.findUnique({
+        where: { idAsignacion },
+        select: { idIncidencia: true, idArea: true, idOperativo: true, estado: true, observacion: true }
+      });
+      if (!current) throw new HttpError(404, "La asignación no existe.");
+      if (current.estado !== EstadoAsignacion.ACTIVA) {
+        throw new HttpError(409, "Solo se pueden reasignar asignaciones ACTIVAS.");
+      }
+
+      const area = await transaction.areaOperativa.findUnique({ where: { idArea: input.idArea }, select: { idArea: true } });
+      if (!area) throw new HttpError(404, "El área operativa no existe.");
+      if (input.idOperativo !== null && input.idOperativo !== undefined) {
+        const worker = await transaction.personalOperativo.findUnique({
+          where: { idOperativo: input.idOperativo },
+          select: { idArea: true, activo: true }
+        });
+        if (!worker) throw new HttpError(404, "El trabajador no existe.");
+        if (!worker.activo) throw new HttpError(409, "No se puede reasignar a un trabajador inactivo.");
+        if (worker.idArea !== input.idArea) throw new HttpError(409, "El trabajador no pertenece al área seleccionada.");
+      }
+
+      const previous = await transaction.asignacionIncidencia.update({
+        where: { idAsignacion },
+        data: {
+          estado: EstadoAsignacion.REASIGNADA,
+          fechaFin,
+          observacion: input.observacion ?? current.observacion
+        },
+        include: assignmentInclude
+      });
+      const next = await transaction.asignacionIncidencia.create({
+        data: {
+          idIncidencia: current.idIncidencia,
+          idArea: input.idArea,
+          idOperativo: input.idOperativo ?? null,
+          idAdministrador,
+          estado: EstadoAsignacion.ACTIVA,
+          fechaInicio,
+          observacion: input.observacion ?? "Asignación creada por reasignación."
+        },
+        include: assignmentInclude
+      });
+      await transaction.historialIncidencia.createMany({
+        data: [
+          {
+            idIncidencia: current.idIncidencia,
+            idUsuario: idAdministrador,
+            idArea: current.idArea,
+            idOperativo: current.idOperativo,
+            tipoAccion: TipoAccion.ASIGNACION,
+            observacion: input.observacion ?? "Asignación anterior marcada como REASIGNADA."
+          },
+          {
+            idIncidencia: current.idIncidencia,
+            idUsuario: idAdministrador,
+            idArea: input.idArea,
+            idOperativo: input.idOperativo ?? null,
+            tipoAccion: TipoAccion.ASIGNACION,
+            observacion: input.observacion ?? "Nueva asignación activa creada por reasignación."
+          }
+        ]
+      });
+      return { previous, next };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    response.status(201).json({
+      previousAssignment: serializeAssignment(result.previous),
+      assignment: serializeAssignment(result.next)
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new HttpError(409, "La nueva asignación entra en conflicto con otra asignación activa.");
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      throw new HttpError(409, "La reasignación entró en conflicto con un cambio concurrente. Inténtalo de nuevo.");
+    }
+    throw error;
+  }
+});
+
+const activityInclude = {
+  usuarioCreador: { select: { idUsuario: true, nombre: true } },
+  operativo: { select: { idOperativo: true, nombre: true } }
+} as const;
+
+function serializeActivity(activity: Prisma.ActividadGetPayload<{ include: typeof activityInclude }>) {
+  return {
+    id: activity.idActividad.toString(),
+    idIncidencia: activity.idIncidencia?.toString() ?? null,
+    titulo: activity.titulo,
+    descripcion: activity.descripcion,
+    estado: activity.estado,
+    fechaProgramada: activity.fechaProgramada,
+    fechaInicio: activity.fechaInicio,
+    fechaFinalizacion: activity.fechaFinalizacion,
+    fechaCreacion: activity.fechaCreacion,
+    usuarioCreador: { id: activity.usuarioCreador.idUsuario.toString(), nombre: activity.usuarioCreador.nombre },
+    operativo: activity.operativo
+      ? { id: activity.operativo.idOperativo.toString(), nombre: activity.operativo.nombre }
+      : null
+  };
+}
+
+adminRouter.post("/incidents/:id/observations", async (request, response) => {
+  const idIncidencia = incidentIdSchema.parse(request.params.id);
+  const input = createObservationSchema.parse(request.body);
+  const idUsuario = BigInt(request.user!.id);
+  const history = await prisma.$transaction(async (transaction) => {
+    const incident = await transaction.incidencia.findUnique({ where: { idIncidencia }, select: { idIncidencia: true } });
+    if (!incident) throw new HttpError(404, "No se encontró la incidencia solicitada.");
+    if (input.idOperativo !== null && input.idOperativo !== undefined) {
+      const worker = await transaction.personalOperativo.findUnique({ where: { idOperativo: input.idOperativo }, select: { idOperativo: true } });
+      if (!worker) throw new HttpError(404, "El trabajador no existe.");
+    }
+    return transaction.historialIncidencia.create({
+      data: {
+        idIncidencia,
+        idUsuario,
+        idOperativo: input.idOperativo ?? null,
+        tipoAccion: TipoAccion.OBSERVACION,
+        observacion: input.observacion
+      }
+    });
+  });
+  response.status(201).json({
+    observation: {
+      id: history.idHistorial.toString(),
+      idIncidencia: history.idIncidencia.toString(),
+      tipoAccion: history.tipoAccion,
+      observacion: history.observacion,
+      fechaEvento: history.fechaEvento,
+      idUsuario: history.idUsuario.toString(),
+      idOperativo: history.idOperativo?.toString() ?? null
+    }
+  });
+});
+
+adminRouter.post("/incidents/:id/activities", async (request, response) => {
+  const idIncidencia = incidentIdSchema.parse(request.params.id);
+  const input = createActivitySchema.parse(request.body);
+  const idUsuarioCreador = BigInt(request.user!.id);
+  const activity = await prisma.$transaction(async (transaction) => {
+    const incident = await transaction.incidencia.findUnique({ where: { idIncidencia }, select: { idIncidencia: true } });
+    if (!incident) throw new HttpError(404, "No se encontró la incidencia solicitada.");
+    if (input.idOperativo !== null && input.idOperativo !== undefined) {
+      const worker = await transaction.personalOperativo.findUnique({ where: { idOperativo: input.idOperativo }, select: { idOperativo: true } });
+      if (!worker) throw new HttpError(404, "El trabajador no existe.");
+    }
+    const created = await transaction.actividad.create({
+      data: {
+        idIncidencia,
+        idUsuarioCreador,
+        idOperativo: input.idOperativo ?? null,
+        titulo: input.titulo,
+        descripcion: input.descripcion,
+        estado: input.estado,
+        fechaProgramada: input.fechaProgramada,
+        fechaInicio: input.fechaInicio,
+        fechaFinalizacion: input.fechaFinalizacion
+      },
+      include: activityInclude
+    });
+    await transaction.historialIncidencia.create({
+      data: {
+        idIncidencia,
+        idUsuario: idUsuarioCreador,
+        idOperativo: input.idOperativo ?? null,
+        tipoAccion: TipoAccion.OBSERVACION,
+        observacion: `Actividad registrada: ${input.titulo}. ${input.descripcion}`
+      }
+    });
+    return created;
+  });
+  response.status(201).json({ activity: serializeActivity(activity) });
+});
+
+adminRouter.get("/incidents/:id/activities", async (request, response) => {
+  const idIncidencia = incidentIdSchema.parse(request.params.id);
+  const incident = await prisma.incidencia.findUnique({ where: { idIncidencia }, select: { idIncidencia: true } });
+  if (!incident) throw new HttpError(404, "No se encontró la incidencia solicitada.");
+  const activities = await prisma.actividad.findMany({
+    where: { idIncidencia },
+    orderBy: { fechaCreacion: "desc" },
+    include: activityInclude
+  });
+  response.json({ activities: activities.map(serializeActivity) });
+});
+
+adminRouter.get("/incidents/:id/history", async (request, response) => {
+  const idIncidencia = incidentIdSchema.parse(request.params.id);
+  const incident = await prisma.incidencia.findUnique({ where: { idIncidencia }, select: { idIncidencia: true } });
+  if (!incident) throw new HttpError(404, "No se encontró la incidencia solicitada.");
+  const history = await prisma.historialIncidencia.findMany({
+    where: { idIncidencia },
+    orderBy: { fechaEvento: "asc" },
+    include: {
+      usuario: { select: { idUsuario: true, nombre: true } },
+      area: { select: { idArea: true, nombre: true } },
+      operativo: { select: { idOperativo: true, nombre: true } }
+    }
+  });
+  response.json({ history: history.map((event) => ({
+    id: event.idHistorial.toString(),
+    tipoAccion: event.tipoAccion,
+    estadoAnterior: event.estadoAnterior,
+    estadoNuevo: event.estadoNuevo,
+    observacion: event.observacion,
+    fechaEvento: event.fechaEvento,
+    usuario: { id: event.usuario.idUsuario.toString(), nombre: event.usuario.nombre },
+    area: event.area ? { id: event.area.idArea.toString(), nombre: event.area.nombre } : null,
+    operativo: event.operativo ? { id: event.operativo.idOperativo.toString(), nombre: event.operativo.nombre } : null
+  })) });
 });

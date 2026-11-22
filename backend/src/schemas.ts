@@ -1,4 +1,9 @@
-import { EstadoAsignacion, EstadoIncidencia, RolUsuario } from "../generated/prisma/client.js";
+import {
+  EstadoActividad,
+  EstadoAsignacion,
+  EstadoIncidencia,
+  RolUsuario
+} from "../generated/prisma/client.js";
 import { z } from "zod";
 
 export const loginSchema = z.object({
@@ -124,4 +129,53 @@ export const assignmentQuerySchema = z.object({
   idArea: z.coerce.bigint().positive().optional(),
   idOperativo: z.coerce.bigint().positive().optional(),
   estado: z.enum(EstadoAsignacion).optional()
+});
+
+export const incidentStatusChangeSchema = z.object({
+  estado: z.enum(EstadoIncidencia),
+  observacion: z.string().trim().max(2000).nullable().optional()
+}).superRefine((input, context) => {
+  if (input.estado === EstadoIncidencia.RECHAZADA && !input.observacion) {
+    context.addIssue({
+      code: "custom",
+      path: ["observacion"],
+      message: "Rechazar una incidencia requiere una observación o motivo."
+    });
+  }
+});
+
+export const resolveIncidentSchema = z.object({
+  observacion: z.string().trim().min(1).max(2000)
+});
+
+export const assignmentLifecycleSchema = z.object({
+  estado: z.enum(EstadoAsignacion).refine(
+    (estado) => estado === EstadoAsignacion.COMPLETADA || estado === EstadoAsignacion.CANCELADA,
+    "Solo se permite completar o cancelar una asignación desde este endpoint."
+  ),
+  observacion: z.string().trim().max(2000).nullable().optional()
+});
+
+const activityDateSchema = z.coerce.date();
+
+export const createActivitySchema = z.object({
+  titulo: z.string().trim().min(3).max(160),
+  descripcion: z.string().trim().min(1).max(5000),
+  idOperativo: z.coerce.bigint().positive().nullable().optional(),
+  estado: z.enum(EstadoActividad).default(EstadoActividad.PLANIFICADA),
+  fechaProgramada: activityDateSchema.optional(),
+  fechaInicio: activityDateSchema.optional(),
+  fechaFinalizacion: activityDateSchema.optional()
+}).superRefine((input, context) => {
+  if (input.fechaInicio && input.fechaFinalizacion && input.fechaFinalizacion < input.fechaInicio) {
+    context.addIssue({ code: "custom", path: ["fechaFinalizacion"], message: "La fecha final no puede ser anterior a la fecha de inicio." });
+  }
+  if (input.estado === EstadoActividad.COMPLETADA && !input.fechaFinalizacion) {
+    context.addIssue({ code: "custom", path: ["fechaFinalizacion"], message: "Una actividad completada requiere fecha de finalización." });
+  }
+});
+
+export const createObservationSchema = z.object({
+  observacion: z.string().trim().min(1).max(5000),
+  idOperativo: z.coerce.bigint().positive().nullable().optional()
 });
