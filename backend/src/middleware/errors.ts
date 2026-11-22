@@ -2,11 +2,22 @@ import type { NextFunction, Request, Response } from "express";
 import { Prisma } from "../../generated/prisma/client.js";
 import { ZodError } from "zod";
 
+export class HttpError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = "HttpError";
+  }
+}
+
 export function notFound(_request: Request, response: Response): void {
   response.status(404).json({ error: "Ruta no encontrada." });
 }
 
 export function errorHandler(error: unknown, _request: Request, response: Response, _next: NextFunction): void {
+  if (error instanceof HttpError) {
+    response.status(error.status).json({ error: error.message });
+    return;
+  }
   if (error instanceof ZodError) {
     response.status(400).json({
       error: "Los datos enviados no son válidos.",

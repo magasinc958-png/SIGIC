@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { config } from "./config.js";
 import { errorHandler, notFound } from "./middleware/errors.js";
 import { authRouter } from "./routes/auth.routes.js";
+import { incidentsRouter } from "./routes/incidents.routes.js";
 import { usersRouter } from "./routes/users.routes.js";
 
 export const app = express();
@@ -19,5 +20,6 @@ app.get("/api/health", (_request, response) => {
 
 app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/incidents", incidentsRouter);
 app.use(notFound);
 app.use(errorHandler);
