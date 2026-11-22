@@ -4,9 +4,10 @@ import { profiles, type ProfileDetails, type UserProfile } from '../types/profil
 type ProfileSelectionPageProps = {
   onSelectProfile: (profile: UserProfile) => void
   onBack: () => void
+  onDemo: (role: 'RESIDENT' | 'ADMIN') => void
 }
 
-export function ProfileSelectionPage({ onSelectProfile, onBack }: ProfileSelectionPageProps) {
+export function ProfileSelectionPage({ onSelectProfile, onBack, onDemo }: ProfileSelectionPageProps) {
   const handleSelectProfile = (profile: ProfileDetails) => onSelectProfile(profile.id)
   const availableProfiles = profiles.filter(({ id }) => id === 'resident' || id === 'administration')
 
@@ -28,6 +29,11 @@ export function ProfileSelectionPage({ onSelectProfile, onBack }: ProfileSelecti
           {availableProfiles.map((profile) => (
             <ProfileCard key={profile.id} onSelect={handleSelectProfile} profile={profile} />
           ))}
+        </div>
+
+        <div className="selection-demo" aria-label="Recorridos de demostración">
+          <p>Explorar sin iniciar sesión: modo DEMO, sin conexión a datos reales.</p>
+          <div><button onClick={() => onDemo('RESIDENT')} type="button">Demo de residente</button><button onClick={() => onDemo('ADMIN')} type="button">Demo de administración</button></div>
         </div>
 
         <footer className="support-note selection-support">

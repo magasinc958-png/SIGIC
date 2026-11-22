@@ -16,6 +16,16 @@ type ApiErrorBody = {
   error?: string
 }
 
+export class ApiRequestError extends Error {
+  public readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiRequestError'
+    this.status = status
+  }
+}
+
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
@@ -30,7 +40,10 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as ApiErrorBody
-    throw new Error(body.error ?? `La solicitud falló (${response.status}).`)
+    throw new ApiRequestError(
+      body.error ?? `La solicitud falló (${response.status}).`,
+      response.status,
+    )
   }
 
   return (await response.json()) as T

@@ -1,7 +1,8 @@
 import './App.css'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { LoginPage } from './components/LoginPage'
 import { ProfileSelectionPage } from './components/ProfileSelectionPage'
+import { PortalDashboard } from './components/PortalDashboard'
 import { WelcomePage } from './components/WelcomePage'
 import { apiRequest, type ApiUser, type AuthSession } from './lib/api'
 import type { UserProfile } from './types/profile'
@@ -14,13 +15,15 @@ const profileByRole: Record<ApiUser['role'], UserProfile> = {
 }
 
 type SigicHistoryState = {
-  sigicScreen?: 'welcome' | 'profiles' | 'login'
+  sigicScreen?: 'welcome' | 'profiles' | 'login' | 'demo'
   selectedProfile?: UserProfile | null
+  demoRole?: 'RESIDENT' | 'ADMIN' | null
 }
 
 function App() {
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null)
   const [activeScreen, setActiveScreen] = useState<'welcome' | 'profiles'>('welcome')
+  const [demoRole, setDemoRole] = useState<'RESIDENT' | 'ADMIN' | null>(null)
   const [session, setSession] = useState<AuthSession | null>(null)
   const [isRestoringSession, setIsRestoringSession] = useState(
     () => Boolean(sessionStorage.getItem('sigic.accessToken')),
@@ -59,6 +62,7 @@ function App() {
       const state = event.state as SigicHistoryState | null
       setActiveScreen(state?.sigicScreen === 'profiles' ? 'profiles' : 'welcome')
       setSelectedProfile(state?.sigicScreen === 'login' ? state.selectedProfile ?? null : null)
+      setDemoRole(state?.sigicScreen === 'demo' ? state.demoRole ?? null : null)
     }
 
     window.addEventListener('popstate', handlePopState)
@@ -76,6 +80,12 @@ function App() {
     setSelectedProfile(profile)
   }
 
+  const openDemo = (role: 'RESIDENT' | 'ADMIN') => {
+    window.history.pushState({ sigicScreen: 'demo', demoRole: role }, '', `#demo/${role.toLowerCase()}`)
+    setSelectedProfile(null)
+    setDemoRole(role)
+  }
+
   const backToProfiles = () => {
     if ((window.history.state as SigicHistoryState | null)?.sigicScreen === 'login') {
       window.history.back()
@@ -84,6 +94,7 @@ function App() {
 
     window.history.replaceState({ sigicScreen: 'profiles', selectedProfile: null }, '', '#profiles')
     setSelectedProfile(null)
+    setDemoRole(null)
     setActiveScreen('profiles')
   }
 
@@ -95,8 +106,27 @@ function App() {
 
     window.history.replaceState({ sigicScreen: 'welcome', selectedProfile: null }, '', window.location.pathname + window.location.search)
     setSelectedProfile(null)
+    setDemoRole(null)
     setActiveScreen('welcome')
   }
+
+  const expireSession = useCallback(() => {
+    sessionStorage.removeItem('sigic.accessToken')
+    setSession(null)
+    setSelectedProfile(null)
+    setDemoRole(null)
+    setActiveScreen('profiles')
+    window.history.replaceState({ sigicScreen: 'profiles', selectedProfile: null }, '', '#profiles')
+  }, [])
+
+  const logout = useCallback(() => {
+    sessionStorage.removeItem('sigic.accessToken')
+    setSession(null)
+    setSelectedProfile(null)
+    setDemoRole(null)
+    setActiveScreen('welcome')
+    window.history.replaceState({ sigicScreen: 'welcome', selectedProfile: null }, '', window.location.pathname + window.location.search)
+  }, [])
 
   if (isRestoringSession) {
     return (
@@ -104,6 +134,17 @@ function App() {
         <p role="status">Verificando tu sesión…</p>
       </main>
     )
+  }
+
+  if (demoRole) {
+    return <PortalDashboard key={`demo-${demoRole}`} session={null} demoRole={demoRole} onLogout={logout} onSessionExpired={expireSession} />
+  }
+
+  if (session) {
+    if (session.user.role === 'RESIDENT' || session.user.role === 'ADMIN') {
+      return <PortalDashboard key={session.user.id} session={session} onLogout={logout} onSessionExpired={expireSession} />
+    }
+    return <main className="login-page"><section className="login-card"><h1>Este rol no está incluido en los Sprints 1 y 2.</h1><p>La sesión y los permisos siguen determinados por el backend.</p><button className="submit-button" onClick={logout} type="button">Cerrar sesión</button></section></main>
   }
 
   if (selectedProfile) {
@@ -120,13 +161,7 @@ function App() {
           }
           setSession(authenticatedSession)
         }}
-        onLogout={() => {
-          sessionStorage.removeItem('sigic.accessToken')
-          setSession(null)
-          setSelectedProfile(null)
-          setActiveScreen('profiles')
-          window.history.replaceState({ sigicScreen: 'profiles', selectedProfile: null }, '', '#profiles')
-        }}
+        onLogout={logout}
       />
     )
   }
@@ -135,7 +170,7 @@ function App() {
     return <WelcomePage onStart={openProfiles} />
   }
 
-  return <ProfileSelectionPage onSelectProfile={openLogin} onBack={backToWelcome} />
+  return <ProfileSelectionPage onSelectProfile={openLogin} onBack={backToWelcome} onDemo={openDemo} />
 }
 
 export default App

@@ -40,6 +40,7 @@ export function WelcomePage({ onStart }: WelcomePageProps) {
         </section>
 
         <section className="welcome-card" aria-labelledby="welcome-card-title">
+          <img className="welcome-card__logo" src="/asoceinort-logo.svg" alt="ASOCEINORT, Asociación de Propietarios de la Urbanización Ceibos Norte" />
           <p className="welcome-card__eyebrow">Bienvenido a SIGIC</p>
           <h2 id="welcome-card-title">Tu voz puede<br />cambiar las cosas.</h2>
           <p className="welcome-card__description">Accede al portal de gestión comunitaria de ASOCEINORT.</p>

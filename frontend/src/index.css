@@ -4,12 +4,10 @@
   --color-green-dark: #052f24;
   --color-green-secondary: #155843;
   --color-green-deep: #123e2c;
-  --color-accent: #9ddbB6;
-  --color-lime: #9ddbB6;
-  --color-orange: #f59a16;
+  --color-accent: #9DDBB6;
   --color-page: #f4f8f2;
   --color-surface: #ffffff;
-  --color-text: #173f34;
+  --color-text: #123e2c;
   --color-muted: #61756a;
   --color-border: #dbe6dc;
   --color-error: #b42318;
@@ -24,8 +22,8 @@
   --radius-lg: 20px;
   --shadow-card: 0 8px 24px rgb(8 62 48 / 12%);
   font-family: var(--font-sans);
-  color: #172033;
-  background: #f5f7fa;
+  color: var(--color-text);
+  background: var(--color-page);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
