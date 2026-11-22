@@ -1,3 +1,12 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
+-- CreateEnum
+CREATE TYPE "RolUsuario" AS ENUM ('RESIDENTE', 'ADMINISTRACION', 'DIRECTIVA');
+
+-- CreateEnum
+CREATE TYPE "EstadoAsignacion" AS ENUM ('ACTIVA', 'COMPLETADA', 'CANCELADA', 'REASIGNADA');
+
 -- CreateEnum
 CREATE TYPE "EstadoIncidencia" AS ENUM ('PENDIENTE', 'EN_REVISION', 'ASIGNADA', 'EN_PROCESO', 'ATENDIDA', 'RESUELTA', 'RECHAZADA');
 
@@ -17,9 +26,10 @@ CREATE TABLE "usuario" (
     "email" VARCHAR(150) NOT NULL,
     "telefono" VARCHAR(25),
     "contrasena_hash" VARCHAR(255) NOT NULL,
+    "rol" "RolUsuario" NOT NULL DEFAULT 'RESIDENTE',
     "activo" BOOLEAN NOT NULL DEFAULT true,
     "fecha_creacion" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "fecha_actualizacion" TIMESTAMPTZ(6) NOT NULL,
+    "fecha_actualizacion" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "usuario_pkey" PRIMARY KEY ("id_usuario")
 );
@@ -89,12 +99,10 @@ CREATE TABLE "incidencia" (
     "titulo" VARCHAR(160) NOT NULL,
     "descripcion" TEXT NOT NULL,
     "id_residente" BIGINT NOT NULL,
-    "id_administrador" BIGINT,
-    "id_operativo" BIGINT,
     "id_tipo" SMALLINT NOT NULL,
     "estado" "EstadoIncidencia" NOT NULL DEFAULT 'PENDIENTE',
     "fecha_creacion" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "fecha_actualizacion" TIMESTAMPTZ(6) NOT NULL,
+    "fecha_actualizacion" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "fecha_objetivo" TIMESTAMPTZ(6),
     "fecha_resolucion" TIMESTAMPTZ(6),
     "observacion_cierre" TEXT,
@@ -134,6 +142,8 @@ CREATE TABLE "historial_incidencia" (
     "id_historial" BIGSERIAL NOT NULL,
     "id_incidencia" BIGINT NOT NULL,
     "id_usuario" BIGINT NOT NULL,
+    "id_area" BIGINT,
+    "id_operativo" BIGINT,
     "tipo_accion" "TipoAccion" NOT NULL,
     "estado_anterior" "EstadoIncidencia",
     "estado_nuevo" "EstadoIncidencia",
@@ -141,6 +151,21 @@ CREATE TABLE "historial_incidencia" (
     "fecha_evento" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "historial_incidencia_pkey" PRIMARY KEY ("id_historial")
+);
+
+-- CreateTable
+CREATE TABLE "asignacion_incidencia" (
+    "id_asignacion" BIGSERIAL NOT NULL,
+    "id_incidencia" BIGINT NOT NULL,
+    "id_area" BIGINT NOT NULL,
+    "id_operativo" BIGINT,
+    "id_administrador_asignador" BIGINT NOT NULL,
+    "estado" "EstadoAsignacion" NOT NULL DEFAULT 'ACTIVA',
+    "fecha_inicio" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "fecha_fin" TIMESTAMPTZ(6),
+    "observacion" TEXT,
+
+    CONSTRAINT "asignacion_incidencia_pkey" PRIMARY KEY ("id_asignacion")
 );
 
 -- CreateTable
@@ -195,6 +220,9 @@ CREATE TABLE "auditoria_sistema" (
 CREATE UNIQUE INDEX "usuario_email_key" ON "usuario"("email");
 
 -- CreateIndex
+CREATE INDEX "usuario_rol_activo_idx" ON "usuario"("rol", "activo");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "area_operativa_nombre_key" ON "area_operativa"("nombre");
 
 -- CreateIndex
@@ -213,12 +241,6 @@ CREATE UNIQUE INDEX "incidencia_codigo_key" ON "incidencia"("codigo");
 CREATE INDEX "incidencia_id_residente_idx" ON "incidencia"("id_residente");
 
 -- CreateIndex
-CREATE INDEX "incidencia_id_administrador_idx" ON "incidencia"("id_administrador");
-
--- CreateIndex
-CREATE INDEX "incidencia_id_operativo_idx" ON "incidencia"("id_operativo");
-
--- CreateIndex
 CREATE INDEX "incidencia_id_tipo_idx" ON "incidencia"("id_tipo");
 
 -- CreateIndex
@@ -235,6 +257,27 @@ CREATE INDEX "historial_incidencia_id_incidencia_fecha_evento_idx" ON "historial
 
 -- CreateIndex
 CREATE INDEX "historial_incidencia_id_usuario_idx" ON "historial_incidencia"("id_usuario");
+
+-- CreateIndex
+CREATE INDEX "historial_incidencia_id_area_idx" ON "historial_incidencia"("id_area");
+
+-- CreateIndex
+CREATE INDEX "historial_incidencia_id_operativo_idx" ON "historial_incidencia"("id_operativo");
+
+-- CreateIndex
+CREATE INDEX "asignacion_incidencia_id_incidencia_fecha_fin_idx" ON "asignacion_incidencia"("id_incidencia", "fecha_fin");
+
+-- CreateIndex
+CREATE INDEX "asignacion_incidencia_id_incidencia_estado_fecha_fin_idx" ON "asignacion_incidencia"("id_incidencia", "estado", "fecha_fin");
+
+-- CreateIndex
+CREATE INDEX "asignacion_incidencia_id_area_fecha_fin_idx" ON "asignacion_incidencia"("id_area", "fecha_fin");
+
+-- CreateIndex
+CREATE INDEX "asignacion_incidencia_id_operativo_fecha_fin_idx" ON "asignacion_incidencia"("id_operativo", "fecha_fin");
+
+-- CreateIndex
+CREATE INDEX "asignacion_incidencia_id_administrador_asignador_fecha_inic_idx" ON "asignacion_incidencia"("id_administrador_asignador", "fecha_inicio");
 
 -- CreateIndex
 CREATE INDEX "actividad_id_incidencia_idx" ON "actividad"("id_incidencia");
@@ -285,12 +328,6 @@ ALTER TABLE "personal_operativo" ADD CONSTRAINT "personal_operativo_id_area_fkey
 ALTER TABLE "incidencia" ADD CONSTRAINT "incidencia_id_residente_fkey" FOREIGN KEY ("id_residente") REFERENCES "residente"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "incidencia" ADD CONSTRAINT "incidencia_id_administrador_fkey" FOREIGN KEY ("id_administrador") REFERENCES "administrador"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "incidencia" ADD CONSTRAINT "incidencia_id_operativo_fkey" FOREIGN KEY ("id_operativo") REFERENCES "personal_operativo"("id_operativo") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "incidencia" ADD CONSTRAINT "incidencia_id_tipo_fkey" FOREIGN KEY ("id_tipo") REFERENCES "tipo_incidencia"("id_tipo") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -304,6 +341,24 @@ ALTER TABLE "historial_incidencia" ADD CONSTRAINT "historial_incidencia_id_incid
 
 -- AddForeignKey
 ALTER TABLE "historial_incidencia" ADD CONSTRAINT "historial_incidencia_id_usuario_fkey" FOREIGN KEY ("id_usuario") REFERENCES "usuario"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "historial_incidencia" ADD CONSTRAINT "historial_incidencia_id_area_fkey" FOREIGN KEY ("id_area") REFERENCES "area_operativa"("id_area") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "historial_incidencia" ADD CONSTRAINT "historial_incidencia_id_operativo_fkey" FOREIGN KEY ("id_operativo") REFERENCES "personal_operativo"("id_operativo") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "asignacion_incidencia" ADD CONSTRAINT "asignacion_incidencia_id_incidencia_fkey" FOREIGN KEY ("id_incidencia") REFERENCES "incidencia"("id_incidencia") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "asignacion_incidencia" ADD CONSTRAINT "asignacion_incidencia_id_area_fkey" FOREIGN KEY ("id_area") REFERENCES "area_operativa"("id_area") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "asignacion_incidencia" ADD CONSTRAINT "asignacion_incidencia_id_operativo_fkey" FOREIGN KEY ("id_operativo") REFERENCES "personal_operativo"("id_operativo") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "asignacion_incidencia" ADD CONSTRAINT "asignacion_incidencia_id_administrador_asignador_fkey" FOREIGN KEY ("id_administrador_asignador") REFERENCES "administrador"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "actividad" ADD CONSTRAINT "actividad_id_incidencia_fkey" FOREIGN KEY ("id_incidencia") REFERENCES "incidencia"("id_incidencia") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -325,3 +380,36 @@ ALTER TABLE "comunicado" ADD CONSTRAINT "comunicado_id_actividad_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "auditoria_sistema" ADD CONSTRAINT "auditoria_sistema_id_usuario_fkey" FOREIGN KEY ("id_usuario") REFERENCES "usuario"("id_usuario") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- SIGIC custom constraints (not expressible in Prisma schema alone)
+ALTER TABLE "asignacion_incidencia"
+  ADD CONSTRAINT "asignacion_incidencia_fechas_ck"
+  CHECK ("fecha_fin" IS NULL OR "fecha_fin" >= "fecha_inicio");
+
+ALTER TABLE "asignacion_incidencia"
+  ADD CONSTRAINT "asignacion_incidencia_estado_fecha_fin_ck"
+  CHECK (
+    ("estado" = 'ACTIVA' AND "fecha_fin" IS NULL)
+    OR
+    ("estado" IN ('COMPLETADA', 'CANCELADA', 'REASIGNADA') AND "fecha_fin" IS NOT NULL)
+  );
+
+CREATE UNIQUE INDEX "asignacion_incidencia_activa_trabajador_key"
+  ON "asignacion_incidencia" ("id_incidencia", "id_operativo")
+  WHERE "estado" = 'ACTIVA' AND "id_operativo" IS NOT NULL;
+
+CREATE UNIQUE INDEX "asignacion_incidencia_activa_area_sin_trabajador_key"
+  ON "asignacion_incidencia" ("id_incidencia", "id_area")
+  WHERE "estado" = 'ACTIVA' AND "id_operativo" IS NULL;
+
+ALTER TABLE "ubicacion"
+  ADD CONSTRAINT "ubicacion_latitud_ck"
+  CHECK ("latitud" IS NULL OR "latitud" BETWEEN -90 AND 90);
+
+ALTER TABLE "ubicacion"
+  ADD CONSTRAINT "ubicacion_longitud_ck"
+  CHECK ("longitud" IS NULL OR "longitud" BETWEEN -180 AND 180);
+
+ALTER TABLE "ubicacion"
+  ADD CONSTRAINT "ubicacion_coordenadas_completas_ck"
+  CHECK (("latitud" IS NULL) = ("longitud" IS NULL));

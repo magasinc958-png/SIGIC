@@ -16,6 +16,19 @@ datasource db {
 // ENUMERACIONES
 // =====================================================
 
+enum RolUsuario {
+  RESIDENTE
+  ADMINISTRACION
+  DIRECTIVA
+}
+
+enum EstadoAsignacion {
+  ACTIVA
+  COMPLETADA
+  CANCELADA
+  REASIGNADA
+}
+
 enum EstadoIncidencia {
   PENDIENTE
   EN_REVISION
@@ -53,14 +66,15 @@ enum PrioridadComunicado {
 // =====================================================
 
 model Usuario {
-  idUsuario          BigInt   @id @default(autoincrement()) @map("id_usuario")
-  nombre             String   @db.VarChar(120)
-  email              String   @unique @db.VarChar(150)
-  telefono           String?  @db.VarChar(25)
-  contrasenaHash     String   @map("contrasena_hash") @db.VarChar(255)
-  activo             Boolean  @default(true)
-  fechaCreacion      DateTime @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
-  fechaActualizacion DateTime @updatedAt @map("fecha_actualizacion") @db.Timestamptz(6)
+  idUsuario          BigInt     @id @default(autoincrement()) @map("id_usuario")
+  nombre             String     @db.VarChar(120)
+  email              String     @unique @db.VarChar(150)
+  telefono           String?    @db.VarChar(25)
+  contrasenaHash     String     @map("contrasena_hash") @db.VarChar(255)
+  rol                RolUsuario @default(RESIDENTE)
+  activo             Boolean    @default(true)
+  fechaCreacion      DateTime   @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
+  fechaActualizacion DateTime   @default(now()) @updatedAt @map("fecha_actualizacion") @db.Timestamptz(6)
 
   residente     Residente?
   administrador Administrador?
@@ -70,6 +84,7 @@ model Usuario {
   actividadesCreadas Actividad[]
   auditorias         AuditoriaSistema[]
 
+  @@index([rol, activo])
   @@map("usuario")
 }
 
@@ -101,8 +116,8 @@ model Administrador {
 
   usuario Usuario @relation(fields: [idUsuario], references: [idUsuario], onDelete: Restrict)
 
-  incidencias Incidencia[]
-  comunicados Comunicado[]
+  comunicados            Comunicado[]
+  asignacionesRealizadas AsignacionIncidencia[]
 
   @@map("administrador")
 }
@@ -129,7 +144,9 @@ model AreaOperativa {
   nombre      String  @unique @db.VarChar(80)
   descripcion String? @db.VarChar(255)
 
-  personal PersonalOperativo[]
+  personal     PersonalOperativo[]
+  asignaciones AsignacionIncidencia[]
+  historial    HistorialIncidencia[]
 
   @@map("area_operativa")
 }
@@ -148,8 +165,9 @@ model PersonalOperativo {
 
   area AreaOperativa @relation(fields: [idArea], references: [idArea], onDelete: Restrict)
 
-  incidencias Incidencia[]
-  actividades Actividad[]
+  asignaciones AsignacionIncidencia[]
+  actividades  Actividad[]
+  historial    HistorialIncidencia[]
 
   @@index([idArea])
   @@map("personal_operativo")
@@ -180,15 +198,13 @@ model Incidencia {
   titulo       String @db.VarChar(160)
   descripcion  String @db.Text
 
-  idResidente     BigInt  @map("id_residente")
-  idAdministrador BigInt? @map("id_administrador")
-  idOperativo     BigInt? @map("id_operativo")
-  idTipo          Int     @map("id_tipo") @db.SmallInt
+  idResidente BigInt @map("id_residente")
+  idTipo      Int    @map("id_tipo") @db.SmallInt
 
   estado EstadoIncidencia @default(PENDIENTE)
 
   fechaCreacion      DateTime  @default(now()) @map("fecha_creacion") @db.Timestamptz(6)
-  fechaActualizacion DateTime  @updatedAt @map("fecha_actualizacion") @db.Timestamptz(6)
+  fechaActualizacion DateTime  @default(now()) @updatedAt @map("fecha_actualizacion") @db.Timestamptz(6)
   fechaObjetivo      DateTime? @map("fecha_objetivo") @db.Timestamptz(6)
   fechaResolucion    DateTime? @map("fecha_resolucion") @db.Timestamptz(6)
 
@@ -196,21 +212,16 @@ model Incidencia {
 
   residente Residente @relation(fields: [idResidente], references: [idUsuario], onDelete: Restrict)
 
-  administrador Administrador? @relation(fields: [idAdministrador], references: [idUsuario], onDelete: Restrict)
-
-  operativo PersonalOperativo? @relation(fields: [idOperativo], references: [idOperativo], onDelete: Restrict)
-
   tipo TipoIncidencia @relation(fields: [idTipo], references: [idTipo], onDelete: Restrict)
 
-  ubicacion   Ubicacion?
-  adjuntos    Adjunto[]
-  historial   HistorialIncidencia[]
-  actividades Actividad[]
-  comunicados Comunicado[]
+  ubicacion    Ubicacion?
+  adjuntos     Adjunto[]
+  historial    HistorialIncidencia[]
+  actividades  Actividad[]
+  asignaciones AsignacionIncidencia[]
+  comunicados  Comunicado[]
 
   @@index([idResidente])
-  @@index([idAdministrador])
-  @@index([idOperativo])
   @@index([idTipo])
   @@index([estado, fechaCreacion])
   @@map("incidencia")
@@ -263,9 +274,11 @@ model Adjunto {
 // =====================================================
 
 model HistorialIncidencia {
-  idHistorial  BigInt @id @default(autoincrement()) @map("id_historial")
-  idIncidencia BigInt @map("id_incidencia")
-  idUsuario    BigInt @map("id_usuario")
+  idHistorial  BigInt  @id @default(autoincrement()) @map("id_historial")
+  idIncidencia BigInt  @map("id_incidencia")
+  idUsuario    BigInt  @map("id_usuario")
+  idArea       BigInt? @map("id_area")
+  idOperativo  BigInt? @map("id_operativo")
 
   tipoAccion     TipoAccion        @map("tipo_accion")
   estadoAnterior EstadoIncidencia? @map("estado_anterior")
@@ -278,13 +291,50 @@ model HistorialIncidencia {
 
   usuario Usuario @relation(fields: [idUsuario], references: [idUsuario], onDelete: Restrict)
 
+  area AreaOperativa? @relation(fields: [idArea], references: [idArea], onDelete: Restrict)
+
+  operativo PersonalOperativo? @relation(fields: [idOperativo], references: [idOperativo], onDelete: Restrict)
+
   @@index([idIncidencia, fechaEvento])
   @@index([idUsuario])
+  @@index([idArea])
+  @@index([idOperativo])
   @@map("historial_incidencia")
 }
 
 // =====================================================
-// 12. ACTIVIDAD
+// 12. ASIGNACION DE INCIDENCIA
+// =====================================================
+
+model AsignacionIncidencia {
+  idAsignacion    BigInt           @id @default(autoincrement()) @map("id_asignacion")
+  idIncidencia    BigInt           @map("id_incidencia")
+  idArea          BigInt           @map("id_area")
+  idOperativo     BigInt?          @map("id_operativo")
+  idAdministrador BigInt           @map("id_administrador_asignador")
+  estado          EstadoAsignacion @default(ACTIVA)
+  fechaInicio     DateTime         @default(now()) @map("fecha_inicio") @db.Timestamptz(6)
+  fechaFin        DateTime?        @map("fecha_fin") @db.Timestamptz(6)
+  observacion     String?          @db.Text
+
+  incidencia Incidencia @relation(fields: [idIncidencia], references: [idIncidencia], onDelete: Restrict)
+
+  area AreaOperativa @relation(fields: [idArea], references: [idArea], onDelete: Restrict)
+
+  operativo PersonalOperativo? @relation(fields: [idOperativo], references: [idOperativo], onDelete: Restrict)
+
+  administradorAsignador Administrador @relation(fields: [idAdministrador], references: [idUsuario], onDelete: Restrict)
+
+  @@index([idIncidencia, fechaFin])
+  @@index([idIncidencia, estado, fechaFin])
+  @@index([idArea, fechaFin])
+  @@index([idOperativo, fechaFin])
+  @@index([idAdministrador, fechaInicio])
+  @@map("asignacion_incidencia")
+}
+
+// =====================================================
+// 13. ACTIVIDAD
 // =====================================================
 
 model Actividad {
@@ -318,7 +368,7 @@ model Actividad {
 }
 
 // =====================================================
-// 13. COMUNICADO
+// 14. COMUNICADO
 // =====================================================
 
 model Comunicado {
