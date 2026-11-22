@@ -32,7 +32,14 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat('es-EC', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
+function elapsedLabel(from: string, to: string | number = Date.now()) {
+  const hours = Math.max(0, Math.floor((new Date(to).getTime() - new Date(from).getTime()) / 3_600_000))
+  const days = Math.floor(hours / 24)
+  return days ? `${days} d ${hours % 24} h` : `${hours} h`
+}
+
 export function IncidentDetailPage({ token, incidentId, isAdmin, staff, onBack, onSessionExpired, onUpdated }: IncidentDetailPageProps) {
+  const [renderTime] = useState(() => Date.now())
   const [incident, setIncident] = useState<Incident | null>(null)
   const [history, setHistory] = useState<IncidentHistoryEntry[]>([])
   const [status, setStatus] = useState<IncidentStatus>('PENDING')
@@ -53,7 +60,7 @@ export function IncidentDetailPage({ token, incidentId, isAdmin, staff, onBack, 
         apiRequest<{ history: IncidentHistoryEntry[] }>(`/incidents/${incidentId}/history`, { headers }),
       ])
       setIncident(item)
-      setHistory(events)
+      setHistory([...events].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()))
       setStatus(item.status)
       setAssigneeId(item.assignee?.id ?? '')
       setDueAt(toLocalDateTime(item.dueAt))
@@ -85,6 +92,7 @@ export function IncidentDetailPage({ token, incidentId, isAdmin, staff, onBack, 
       setNotice('No hay cambios para guardar.')
       return
     }
+    if (!window.confirm('¿Confirmas guardar los cambios de atención para esta incidencia?')) return
     setIsSaving(true)
     try {
       await apiRequest<{ incident: Incident }>(`/incidents/${incident.id}`, {
@@ -121,12 +129,14 @@ export function IncidentDetailPage({ token, incidentId, isAdmin, staff, onBack, 
           <h2>Descripción</h2>
           <p>{incident.description}</p>
           <dl className="incident-facts">
-            <div><dt>Ubicación</dt><dd>{incident.address}</dd></div>
+            <div><dt>Ubicación</dt><dd>{incident.address}{incident.latitude !== null && incident.longitude !== null && <a className="map-link" href={`https://www.openstreetmap.org/?mlat=${incident.latitude}&mlon=${incident.longitude}#map=17/${incident.latitude}/${incident.longitude}`} rel="noreferrer" target="_blank">Ver punto en el mapa ↗</a>}</dd></div>
             {incident.latitude !== null && incident.longitude !== null && <div><dt>Coordenadas</dt><dd>{incident.latitude.toFixed(5)}, {incident.longitude.toFixed(5)}</dd></div>}
             <div><dt>Reportada</dt><dd>{formatDate(incident.createdAt)}</dd></div>
             {incident.reporter && <div><dt>Reportó</dt><dd>{incident.reporter.name}</dd></div>}
             <div><dt>Responsable</dt><dd>{incident.assignee?.name ?? 'Pendiente de asignación'}</dd></div>
             <div><dt>Fecha objetivo</dt><dd>{incident.dueAt ? formatDate(incident.dueAt) : 'Sin fecha definida'}</dd></div>
+            <div><dt>Tiempo transcurrido</dt><dd>{elapsedLabel(incident.createdAt, incident.resolvedAt ?? renderTime)}</dd></div>
+            {incident.dueAt && incident.status !== 'RESOLVED' && incident.status !== 'REJECTED' && <div><dt>Plazo</dt><dd><span className={`status-badge ${new Date(incident.dueAt).getTime() < renderTime ? 'status-badge--overdue' : 'status-badge--resolved'}`}>{new Date(incident.dueAt).getTime() < renderTime ? 'Vencida' : 'En plazo'}</span></dd></div>}
           </dl>
         </article>
         <section className="portal-panel history-panel" aria-labelledby="history-heading">

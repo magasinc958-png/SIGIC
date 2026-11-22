@@ -57,9 +57,12 @@ export function PortalDashboard({ session, demoRole, onLogout, onSessionExpired 
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [incidentFilter, setIncidentFilter] = useState<IncidentStatus | 'ALL'>('ALL')
+  const [categoryFilter, setCategoryFilter] = useState('ALL')
   const [announcementTitle, setAnnouncementTitle] = useState('')
   const [announcementContent, setAnnouncementContent] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [incidentSearch, setIncidentSearch] = useState('')
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -122,9 +125,19 @@ export function PortalDashboard({ session, demoRole, onLogout, onSessionExpired 
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
+  useEffect(() => {
+    if (!mobileNavOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileNavOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [mobileNavOpen])
+
   const navigate = (nextView: PortalView, incidentId = '') => {
     setView(nextView)
     setSelectedIncidentId(incidentId)
+    setMobileNavOpen(false)
     window.history.pushState(
       { ...(window.history.state ?? {}), portalView: nextView, incidentId },
       '',
@@ -132,9 +145,14 @@ export function PortalDashboard({ session, demoRole, onLogout, onSessionExpired 
     )
   }
 
-  const visibleIncidents = useMemo(() => incidentFilter === 'ALL'
-    ? incidents
-    : incidents.filter(({ status }) => status === incidentFilter), [incidentFilter, incidents])
+  const visibleIncidents = useMemo(() => incidents.filter((incident) => {
+    const statusMatches = incidentFilter === 'ALL' || incident.status === incidentFilter
+    const categoryMatches = categoryFilter === 'ALL' || incident.category.id === categoryFilter
+    const query = incidentSearch.trim().toLocaleLowerCase('es')
+    const queryMatches = !query || [incident.title, incident.address, incident.category.name, incident.reporter?.name ?? '']
+      .some((value) => value.toLocaleLowerCase('es').includes(query))
+    return statusMatches && categoryMatches && queryMatches
+  }), [categoryFilter, incidentFilter, incidentSearch, incidents])
 
   const publishAnnouncement = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -215,7 +233,7 @@ export function PortalDashboard({ session, demoRole, onLogout, onSessionExpired 
       : view === 'incidents'
         ? <section className="portal-page" aria-labelledby="incident-list-heading">
             <div className="portal-page-heading"><p className="portal-eyebrow">Seguimiento</p><h1 id="incident-list-heading">{admin ? 'Gestión de incidencias' : 'Mis incidencias'}</h1><p>{admin ? 'Consulta los reportes y abre uno para actualizar su atención.' : 'Consulta el estado y los movimientos de tus reportes.'}</p></div>
-            <div className="incident-list-tools"><label htmlFor="incident-filter">Filtrar por estado</label><select id="incident-filter" onChange={(event) => setIncidentFilter(event.target.value as IncidentStatus | 'ALL')} value={incidentFilter}><option value="ALL">Todos los estados</option>{incidentStatuses.map((status) => <option key={status} value={status}>{statusLabels[status]}</option>)}</select></div>
+            <div className="incident-list-tools"><label className="sr-only" htmlFor="incident-search">Buscar incidencias</label><input autoComplete="off" id="incident-search" onChange={(event) => setIncidentSearch(event.target.value)} placeholder="Buscar por título, dirección o categoría" type="search" value={incidentSearch} /><label htmlFor="incident-filter">Estado</label><select id="incident-filter" onChange={(event) => setIncidentFilter(event.target.value as IncidentStatus | 'ALL')} value={incidentFilter}><option value="ALL">Todos</option>{incidentStatuses.map((status) => <option key={status} value={status}>{statusLabels[status]}</option>)}</select><label htmlFor="category-filter">Categoría</label><select id="category-filter" onChange={(event) => setCategoryFilter(event.target.value)} value={categoryFilter}><option value="ALL">Todas</option>{categories.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}</select></div>
             <IncidentTable incidents={visibleIncidents} admin={admin} onOpen={(id) => navigate('detail', id)} />
           </section>
         : view === 'announcements'
@@ -232,18 +250,27 @@ export function PortalDashboard({ session, demoRole, onLogout, onSessionExpired 
 
   return (
     <main className="portal-app">
-      <header className="portal-header">
+      <button className="portal-menu-toggle" aria-expanded={mobileNavOpen} aria-controls="portal-sidebar" aria-label={mobileNavOpen ? 'Cerrar menú' : 'Abrir menú'} onClick={() => setMobileNavOpen((open) => !open)} type="button"><span aria-hidden="true">{mobileNavOpen ? '×' : '☰'}</span><span>SIGIC</span></button>
+      {mobileNavOpen && <button className="portal-sidebar-backdrop" aria-label="Cerrar menú" onClick={() => setMobileNavOpen(false)} type="button" />}
+      <aside className={`portal-sidebar${mobileNavOpen ? ' is-open' : ''}`} id="portal-sidebar" aria-label="Menú principal">
         <div className="portal-brand"><span>SIGIC</span><small>Gestión Comunitaria</small></div>
-        <nav className="portal-nav" aria-label="Navegación principal">{navItems.map((item) => <button aria-current={view === item.view ? 'page' : undefined} className={view === item.view ? 'portal-nav__item is-active' : 'portal-nav__item'} key={item.view} onClick={() => navigate(item.view)} type="button">{item.label}</button>)}</nav>
-        <div className="portal-user"><span>{userName}<small>{roleLabel}</small></span><button className="button-secondary portal-logout" onClick={onLogout} type="button">{session ? 'Cerrar sesión' : 'Salir del DEMO'}</button></div>
-      </header>
-      <div className="portal-content">
-        {!session && <p className="portal-alert portal-alert--demo" role="status"><strong>Modo DEMO.</strong> Los datos son de ejemplo; los cambios no se guardan ni se envían a endpoints protegidos.</p>}
-        {notice && <p className="portal-alert portal-alert--success" role="status">{notice}</p>}
-        {!isLoading && error && view !== 'overview' && <p className="portal-alert portal-alert--error" role="alert">{error}</p>}
-        {currentView}
+        <div className="portal-sidebar__section-label">Espacio de trabajo</div>
+        <nav className="portal-nav" aria-label="Navegación principal">{navItems.map((item, index) => <button aria-current={view === item.view || (item.view === 'incidents' && view === 'detail') ? 'page' : undefined} className={view === item.view || (item.view === 'incidents' && view === 'detail') ? 'portal-nav__item is-active' : 'portal-nav__item'} key={item.view} onClick={() => navigate(item.view)} type="button"><span aria-hidden="true" className="portal-nav__icon">{['⌂', '▤', '+', '◉'][index]}</span>{item.label}</button>)}</nav>
+        <div className="portal-sidebar__bottom">
+          <div className="portal-user"><span className="portal-user__avatar" aria-hidden="true">{userName.slice(0, 1).toUpperCase()}</span><span className="portal-user__identity">{userName}<small>{roleLabel}</small>{demoRole && <small className="portal-demo-label">Vista de prueba · solo local</small>}</span></div>
+          <button className="portal-logout" onClick={onLogout} type="button"><span aria-hidden="true">↪</span>{session ? 'Cerrar sesión' : 'Salir de la prueba'}</button>
+        </div>
+      </aside>
+      <div className="portal-main-column">
+        <header className="portal-topbar"><div><p className="portal-eyebrow">ASOCEINORT · SIGIC</p><h1>{navItems.find((item) => item.view === (view === 'detail' ? 'incidents' : view))?.label ?? 'Panel'}</h1></div><span className="portal-topbar__date">Gestión comunitaria</span></header>
+        <div className="portal-content">
+          {demoRole && <p className="portal-demo-note" role="status">Datos de ejemplo · Los cambios de esta vista no se guardan ni se envían al servidor.</p>}
+          {notice && <p className="portal-alert portal-alert--success" role="status">{notice}</p>}
+          {!isLoading && error && view !== 'overview' && <p className="portal-alert portal-alert--error" role="alert">{error}</p>}
+          {currentView}
+        </div>
+        <footer className="portal-footer"><span>ASOCEINORT · SIGIC</span><span>Gestión y seguimiento comunitario</span></footer>
       </div>
-      <footer className="portal-footer"><span>ASOCEINORT · SIGIC</span><span>Gestión y seguimiento comunitario</span></footer>
     </main>
   )
 }

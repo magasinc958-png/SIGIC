@@ -156,3 +156,81 @@
   .form-button-row > button { flex: 1 1 140px; }
   .portal-footer { align-items: flex-start; flex-direction: column; gap: 5px; }
 }
+
+/* Shared application shell: persistent desktop sidebar and accessible mobile drawer. */
+.portal-app { display: grid; grid-template-columns: 252px minmax(0, 1fr); min-height: 100vh; }
+.portal-sidebar { background: #083e30; color: #fff; display: flex; flex-direction: column; height: 100vh; min-height: 620px; padding: 26px 18px 18px; position: sticky; top: 0; z-index: 30; }
+.portal-sidebar .portal-brand { color: #fff; font-size: 24px; padding: 0 12px; }
+.portal-sidebar .portal-brand small { color: #b6d7c4; }
+.portal-sidebar__section-label { color: #a6c8b5; font-size: 10px; font-weight: 700; letter-spacing: 1.1px; margin: 48px 12px 12px; text-transform: uppercase; }
+.portal-sidebar .portal-nav { align-items: stretch; display: flex; flex-direction: column; gap: 6px; }
+.portal-sidebar .portal-nav__item { align-items: center; background: transparent; border: 0; border-radius: 9px; color: #d3e5db; display: flex; font-size: 14px; font-weight: 600; gap: 13px; justify-content: flex-start; min-height: 46px; padding: 0 13px; text-align: left; white-space: normal; }
+.portal-sidebar .portal-nav__item:hover { background: rgb(255 255 255 / 8%); color: #fff; }
+.portal-sidebar .portal-nav__item.is-active { background: #155843; box-shadow: inset 3px 0 #9ddbB6; color: #fff; }
+.portal-nav__icon { align-items: center; display: inline-flex; font-size: 18px; height: 22px; justify-content: center; width: 22px; }
+.portal-sidebar__bottom { border-top: 1px solid rgb(255 255 255 / 18%); display: flex; flex-direction: column; gap: 18px; margin-top: auto; padding: 18px 4px 2px; }
+.portal-sidebar .portal-user { align-items: center; color: #fff; gap: 10px; min-width: 0; }
+.portal-user__avatar { align-items: center; background: #9ddbb6; border-radius: 50%; color: #083e30; display: inline-flex; flex: 0 0 36px; font-size: 14px; font-weight: 800; height: 36px; justify-content: center; }
+.portal-sidebar .portal-user__identity { min-width: 0; overflow-wrap: anywhere; }
+.portal-sidebar .portal-user small { color: #c0d8ca; }
+.portal-sidebar .portal-user .portal-demo-label { color: #9ddbb6; font-size: 10px; }
+.portal-logout { align-items: center; background: transparent; border: 0; border-radius: 8px; color: #d3e5db; display: flex; font-size: 13px; font-weight: 600; gap: 12px; min-height: 42px; padding: 0 10px; text-align: left; }
+.portal-logout:hover { background: rgb(255 255 255 / 8%); color: #fff; }
+.portal-main-column { display: flex; flex-direction: column; min-height: 100vh; min-width: 0; }
+.portal-topbar { align-items: center; background: #fff; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; min-height: 90px; padding: 18px clamp(22px, 4vw, 56px); }
+.portal-topbar .portal-eyebrow { margin-bottom: 4px; }
+.portal-topbar h1 { color: var(--color-green-deep); font-size: 20px; letter-spacing: -.25px; margin: 0; }
+.portal-topbar__date { color: var(--color-muted); font-size: 13px; }
+.portal-main-column .portal-content { margin: 0; max-width: 1500px; padding: clamp(28px, 4vw, 52px) clamp(22px, 4vw, 56px); }
+.portal-footer { margin-top: auto; padding-left: clamp(22px, 4vw, 56px); padding-right: clamp(22px, 4vw, 56px); }
+.portal-demo-note { background: #edf6ef; border-left: 3px solid #9ddbB6; border-radius: 5px; color: #315b46; font-size: 12px; margin: 0 0 22px; padding: 9px 12px; }
+.portal-menu-toggle, .portal-sidebar-backdrop { display: none; }
+.incident-list-tools { flex-wrap: wrap; }
+.incident-list-tools input, .incident-list-tools select { background: #fff; border: 1px solid var(--portal-line); border-radius: var(--radius-sm); color: var(--color-green-deep); font: inherit; min-height: 44px; padding: 0 12px; }
+.incident-list-tools input { flex: 1 1 260px; max-width: 440px; }
+.incident-list-tools select { min-width: 150px; }
+.incident-stepper { align-items: center; display: flex; gap: 10px; max-width: 820px; }
+.incident-stepper > span { align-items: center; background: #e8eee8; border-radius: 999px; color: #627369; display: inline-flex; font-size: 12px; font-weight: 800; gap: 8px; min-height: 34px; padding: 0 13px; }
+.incident-stepper > span > span { font-weight: 600; }
+.incident-stepper > span.is-current { background: #083e30; color: #fff; }
+.evidence-preview figure { position: relative; }
+.evidence-remove { align-items: center; background: #fff; border: 1px solid #d6e2d8; border-radius: 50%; color: #7a2c26; cursor: pointer; display: inline-flex; font-size: 19px; height: 30px; justify-content: center; line-height: 1; position: absolute; right: 7px; top: 7px; width: 30px; }
+.location-step { display: flex; flex-direction: column; gap: 16px; }
+.map-toolbar { align-items: center; color: var(--color-green-deep); display: flex; font-size: 13px; font-weight: 650; justify-content: space-between; }
+.map-toolbar > div { display: flex; gap: 7px; }
+.map-toolbar .button-secondary { min-height: 38px; padding: 0 12px; }
+.location-map { background: #e2e9df; border: 1px solid var(--portal-line); border-radius: 12px; height: clamp(250px, 42vw, 420px); overflow: hidden; position: relative; touch-action: none; }
+.location-map iframe { border: 0; height: 100%; left: 0; pointer-events: none; position: absolute; top: 0; width: 100%; }
+.map-marker { align-items: center; background: #083e30; border: 3px solid #fff; border-radius: 50% 50% 50% 0; box-shadow: 0 2px 9px rgb(0 0 0 / 30%); cursor: grab; display: flex; height: 26px; justify-content: center; padding: 0; position: absolute; transform: translate(-50%, -90%) rotate(-45deg); width: 26px; z-index: 2; }
+.map-marker span { background: #9ddbb6; border-radius: 50%; height: 7px; transform: rotate(45deg); width: 7px; }
+.map-credit { background: rgb(255 255 255 / 88%); bottom: 6px; color: #45574c; font-size: 10px; padding: 3px 6px; position: absolute; right: 6px; }
+.report-review { background: #f7faf6; border: 1px solid var(--portal-line); border-radius: var(--radius-md); padding: 22px; }
+.report-review h2 { font-size: 19px; margin: 0 0 15px; }
+.report-review dl { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 0 16px; }
+.report-review dl > div { min-width: 0; }
+.report-review dt { color: var(--color-muted); font-size: 12px; font-weight: 700; }
+.report-review dd { color: var(--color-green-deep); font-size: 14px; margin: 4px 0 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.report-review dd small { display: block; margin-top: 4px; }
+.map-link { color: var(--color-green-secondary); display: block; font-size: 12px; font-weight: 700; margin-top: 6px; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.status-badge--overdue { background: #fff0ed; color: #922e22; }
+.location-map:focus-visible { outline: 3px solid #155843; outline-offset: 3px; }
+
+@media (max-width: 760px) {
+  .portal-app { display: block; padding-top: 62px; }
+  .portal-menu-toggle { align-items: center; background: #083e30; border: 0; color: #fff; display: flex; font-size: 14px; font-weight: 750; gap: 12px; height: 62px; left: 0; padding: 0 18px; position: fixed; right: 0; top: 0; z-index: 45; }
+  .portal-menu-toggle span:first-child { font-size: 20px; }
+  .portal-sidebar { bottom: 0; box-shadow: 12px 0 40px rgb(3 30 22 / 18%); height: 100dvh; left: 0; min-height: 0; position: fixed; top: 0; transform: translateX(-105%); transition: transform 180ms ease; width: min(290px, 86vw); z-index: 50; }
+  .portal-sidebar.is-open { transform: translateX(0); }
+  .portal-sidebar-backdrop { background: rgb(12 31 23 / 42%); border: 0; display: block; inset: 0; position: fixed; z-index: 49; }
+  .portal-main-column { min-height: calc(100vh - 62px); }
+  .portal-topbar { min-height: 72px; padding: 13px 18px; }
+  .portal-topbar h1 { font-size: 18px; }
+  .portal-topbar__date { display: none; }
+  .portal-main-column .portal-content { padding: 24px 16px 32px; }
+  .portal-footer { padding: 15px 16px; }
+  .report-review dl { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-sidebar { transition: none; }
+}
