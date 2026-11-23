@@ -13,6 +13,54 @@ export type AuthUser = {
 
 type LoginResponse = { accessToken: string; user: AuthUser }
 
+export type IncidentStatus = 'PENDIENTE' | 'ASIGNADA' | 'ATENDIDA' | 'EN_PROCESO' | 'RESUELTA' | 'RECHAZADA'
+export type IncidentType = { id: number; nombre: string; codigoPrefijo: string }
+export type IncidentLocation = {
+  manzana: string | null
+  villa: string | null
+  calle: string | null
+  referencia: string | null
+  latitud: string | null
+  longitud: string | null
+}
+export type Incident = {
+  id: string
+  codigo: string
+  titulo: string
+  descripcion: string
+  estado: IncidentStatus
+  fechaCreacion: string
+  fechaActualizacion: string
+  fechaObjetivo: string | null
+  fechaResolucion: string | null
+  tipo: IncidentType
+  ubicacion: IncidentLocation | null
+  historial?: Array<{
+    tipoAccion: string
+    estadoAnterior: IncidentStatus | null
+    estadoNuevo: IncidentStatus | null
+    observacion: string | null
+    fechaEvento: string
+  }>
+}
+export type IncidentListResponse = {
+  incidents: Incident[]
+  pagination: { page: number; limit: number; total: number; totalPages: number }
+}
+export type CreateIncidentInput = {
+  titulo: string
+  descripcion: string
+  idTipo: number
+  ubicacion: {
+    manzana?: string
+    villa?: string
+    calle?: string
+    referencia?: string
+    latitud?: number
+    longitud?: number
+  }
+}
+
 export class ApiError extends Error {
   readonly status: number
 
@@ -50,4 +98,23 @@ export function login(email: string, password: string) {
 
 export function getCurrentUser(accessToken: string) {
   return request<{ user: AuthUser }>('/api/auth/me', {}, accessToken)
+}
+
+export function getIncidentTypes(accessToken: string) {
+  return request<{ types: IncidentType[] }>('/api/incidents/types', {}, accessToken)
+}
+
+export function getMyIncidents(accessToken: string, page = 1, limit = 10) {
+  return request<IncidentListResponse>(`/api/incidents/mine?page=${page}&limit=${limit}`, {}, accessToken)
+}
+
+export function getMyIncident(accessToken: string, id: string) {
+  return request<{ incident: Incident }>(`/api/incidents/${encodeURIComponent(id)}`, {}, accessToken)
+}
+
+export function createIncident(accessToken: string, input: CreateIncidentInput) {
+  return request<{ incident: Incident }>('/api/incidents', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }, accessToken)
 }
