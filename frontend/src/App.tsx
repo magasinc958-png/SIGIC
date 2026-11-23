@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { AuthenticatedHome } from './components/AuthenticatedHome'
 import { ResidentDashboard } from './components/ResidentDashboard'
 import { AdminDashboard } from './components/AdminDashboard'
+import { DirectivaDashboard } from './components/DirectivaDashboard'
 import { useAuth } from './auth/AuthContext'
 import { LoginPage } from './components/LoginPage'
 import { ProfileSelectionPage } from './components/ProfileSelectionPage'
@@ -29,7 +30,8 @@ function App() {
     }[session.user.rol] : '/'
     const isAllowedResidentPath = session?.user.rol === 'RESIDENTE' && path.startsWith('/residente')
     const isAllowedAdminPath = session?.user.rol === 'ADMINISTRACION' && path.startsWith('/administracion')
-    if (path !== roleHome && !isAllowedResidentPath && !isAllowedAdminPath) {
+    const isAllowedDirectivaPath = session?.user.rol === 'DIRECTIVA' && path.startsWith('/directiva')
+    if (path !== roleHome && !isAllowedResidentPath && !isAllowedAdminPath && !isAllowedDirectivaPath) {
       window.history.replaceState({}, '', roleHome)
     }
   }, [isHydrating, path, session])
@@ -44,6 +46,10 @@ function App() {
 
   if (session?.user.rol === 'ADMINISTRACION') {
     return <AdminDashboard path={path} onNavigate={(nextPath) => { window.history.pushState({}, '', nextPath); setPath(nextPath) }} />
+  }
+
+  if (session?.user.rol === 'DIRECTIVA') {
+    return <DirectivaDashboard path={path} onNavigate={(nextPath) => { window.history.pushState({}, '', nextPath); setPath(nextPath) }} />
   }
 
   if (session) return <AuthenticatedHome />

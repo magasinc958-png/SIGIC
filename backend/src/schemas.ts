@@ -77,6 +77,14 @@ export const incidentQuerySchema = z.object({
 
 export const adminIncidentQuerySchema = incidentQuerySchema;
 
+export const directivaIncidentQuerySchema = incidentQuerySchema.extend({
+  fechaDesde: z.coerce.date().optional(),
+  fechaHasta: z.coerce.date().optional()
+}).refine(
+  (input) => !input.fechaDesde || !input.fechaHasta || input.fechaDesde <= input.fechaHasta,
+  "La fecha inicial no puede ser posterior a la fecha final."
+);
+
 export const areaIdSchema = z.coerce.bigint().positive();
 
 export const createAreaSchema = z.object({

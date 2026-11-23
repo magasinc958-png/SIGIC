@@ -7,6 +7,7 @@ import { authRouter } from "./routes/auth.routes.js";
 import { adminRouter } from "./routes/admin.routes.js";
 import { incidentsRouter } from "./routes/incidents.routes.js";
 import { usersRouter } from "./routes/users.routes.js";
+import { directivaRouter } from "./routes/directiva.routes.js";
 
 export const app = express();
 
@@ -23,5 +24,6 @@ app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/incidents", incidentsRouter);
+app.use("/api/directiva", directivaRouter);
 app.use(notFound);
 app.use(errorHandler);

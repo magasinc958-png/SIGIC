@@ -13,7 +13,7 @@ export type AuthUser = {
 
 type LoginResponse = { accessToken: string; user: AuthUser }
 
-export type IncidentStatus = 'PENDIENTE' | 'ASIGNADA' | 'ATENDIDA' | 'EN_PROCESO' | 'RESUELTA' | 'RECHAZADA'
+export type IncidentStatus = 'PENDIENTE' | 'EN_REVISION' | 'ASIGNADA' | 'ATENDIDA' | 'EN_PROCESO' | 'RESUELTA' | 'RECHAZADA'
 export type IncidentType = { id: number; nombre: string; codigoPrefijo: string }
 export type IncidentLocation = {
   manzana: string | null
@@ -135,6 +135,31 @@ export type Area = { id: string; nombre: string; descripcion: string | null }
 export type Worker = { id: string; nombre: string; telefono: string | null; turno: string | null; activo: boolean; area: { id: string; nombre: string } }
 export type Activity = { id: string; titulo: string; descripcion: string; estado: string; fechaProgramada: string | null; fechaInicio: string | null; fechaFinalizacion: string | null; fechaCreacion: string; usuarioCreador: { id: string; nombre: string }; operativo: { id: string; nombre: string } | null }
 export type HistoryEvent = { id: string; tipoAccion: string; estadoAnterior: IncidentStatus | null; estadoNuevo: IncidentStatus | null; observacion: string | null; fechaEvento: string; usuario: { id: string; nombre: string }; area: { id: string; nombre: string } | null; operativo: { id: string; nombre: string } | null }
+
+export type DirectivaSummary = {
+  total: number
+  resueltas: number
+  rechazadas: number
+  porEstado: Array<{ estado: IncidentStatus; total: number }>
+  porTipo: Array<{ idTipo: number; nombre: string; total: number }>
+  evolucion: Array<{ fecha: string; total: number }>
+}
+export type DirectivaIncident = Omit<Incident, 'historial'> & { historial?: Array<{ tipoAccion: string; estadoAnterior: IncidentStatus | null; estadoNuevo: IncidentStatus | null; fechaEvento: string; area: string | null }> }
+
+export function getDirectivaSummary(accessToken: string) {
+  return request<{ summary: DirectivaSummary }>('/api/directiva/summary', {}, accessToken)
+}
+export function getDirectivaIncidents(accessToken: string, params: { page?: number; limit?: number; estado?: string; idTipo?: number; codigo?: string; fechaDesde?: string; fechaHasta?: string } = {}) {
+  const query = new URLSearchParams()
+  query.set('page', String(params.page ?? 1)); query.set('limit', String(params.limit ?? 12))
+  if (params.estado) query.set('estado', params.estado)
+  if (params.idTipo) query.set('idTipo', String(params.idTipo))
+  if (params.codigo) query.set('codigo', params.codigo)
+  if (params.fechaDesde) query.set('fechaDesde', params.fechaDesde)
+  if (params.fechaHasta) query.set('fechaHasta', params.fechaHasta)
+  return request<{ incidents: DirectivaIncident[]; pagination: IncidentListResponse['pagination'] }>(`/api/directiva/incidents?${query}`, {}, accessToken)
+}
+export function getDirectivaIncident(accessToken: string, id: string) { return request<{ incident: DirectivaIncident }>(`/api/directiva/incidents/${encodeURIComponent(id)}`, {}, accessToken) }
 
 export function getAdminIncidents(accessToken: string, params: { page?: number; limit?: number; estado?: string; idTipo?: number; codigo?: string } = {}) {
   const query = new URLSearchParams()
