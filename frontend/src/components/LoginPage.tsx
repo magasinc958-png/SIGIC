@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from 'react'
+import { ApiError } from '../services/api'
+import { useAuth } from '../auth/AuthContext'
 import { getProfileDetails, type UserProfile } from '../types/profile'
 
 type LoginPageProps = {
@@ -19,7 +21,8 @@ export function LoginPage({ profile, onBack }: LoginPageProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [unavailableMessage, setUnavailableMessage] = useState('')
+  const [authError, setAuthError] = useState('')
+  const { login } = useAuth()
 
   const validate = (): FormErrors => {
     const nextErrors: FormErrors = {}
@@ -37,9 +40,9 @@ export function LoginPage({ profile, onBack }: LoginPageProps) {
     return nextErrors
   }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setUnavailableMessage('')
+    setAuthError('')
 
     const nextErrors = validate()
     setErrors(nextErrors)
@@ -49,12 +52,21 @@ export function LoginPage({ profile, onBack }: LoginPageProps) {
     }
 
     setIsSubmitting(true)
-    window.setTimeout(() => {
+    try {
+      await login(email.trim(), password, profile)
+    } catch (error: unknown) {
+      if (error instanceof ApiError && error.status === 401) {
+        setAuthError('Correo o contraseña incorrectos.')
+      } else if (error instanceof ApiError && error.status === 403) {
+        setAuthError(error.message)
+      } else if (error instanceof ApiError && error.status === 0) {
+        setAuthError(error.message)
+      } else {
+        setAuthError('No se pudo iniciar sesión. Intenta nuevamente.')
+      }
+    } finally {
       setIsSubmitting(false)
-      setUnavailableMessage(
-        'La autenticación todavía no está disponible. Este formulario es solo una vista de la Fase 1.',
-      )
-    }, 450)
+    }
   }
 
   return (
@@ -133,11 +145,7 @@ export function LoginPage({ profile, onBack }: LoginPageProps) {
             </button>
           </div>
 
-          {unavailableMessage && (
-            <p className="unavailable-message" role="status">
-              {unavailableMessage}
-            </p>
-          )}
+          {authError && <p className="auth-error-message" role="alert">{authError}</p>}
 
           <button className="submit-button" disabled={isSubmitting} type="submit">
             {isSubmitting ? 'Validando...' : 'Iniciar Sesión'}

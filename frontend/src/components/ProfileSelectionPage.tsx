@@ -3,10 +3,12 @@ import { profiles, type ProfileDetails, type UserProfile } from '../types/profil
 
 type ProfileSelectionPageProps = {
   onSelectProfile: (profile: UserProfile) => void
+  message?: string
 }
 
 export function ProfileSelectionPage({
   onSelectProfile,
+  message,
 }: ProfileSelectionPageProps) {
   const handleSelectProfile = (profile: ProfileDetails) => {
     onSelectProfile(profile.id)
@@ -23,6 +25,8 @@ export function ProfileSelectionPage({
           <h1 id="profile-heading">Selecciona tu perfil para continuar</h1>
           <p>Acceda al perfil correcto segun su requerimiento</p>
         </header>
+
+        {message && <p className="auth-error-message" role="alert">{message}</p>}
 
         <div className="profile-grid">
           {profiles.map((profile) => (

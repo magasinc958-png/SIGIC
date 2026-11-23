@@ -380,6 +380,51 @@
   opacity: 0.7;
 }
 
+.auth-error-message {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  color: #9f1239;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 16px 0 0;
+  padding: 10px 12px;
+}
+
+.authenticated-page {
+  align-items: center;
+  background: var(--surface);
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 32px 20px;
+}
+
+.authenticated-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 14px 40px rgb(15 39 64 / 10%);
+  max-width: 520px;
+  padding: 40px;
+  width: 100%;
+}
+
+.authenticated-card h1 {
+  color: var(--navy);
+  font-size: clamp(24px, 4vw, 32px);
+  margin: 24px 0 12px;
+}
+
+.authenticated-card p:not(.role-badge) {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.authenticated-card .submit-button {
+  margin-top: 24px;
+}
+
 .back-link {
   align-items: center;
   align-self: center;
