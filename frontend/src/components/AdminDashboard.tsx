@@ -10,7 +10,7 @@ const date = (value: string) => new Intl.DateTimeFormat('es-EC', { dateStyle: 'm
 const statusText = (value: string) => value.replaceAll('_', ' ').toLowerCase().replace(/(^|\s)\S/g, (x) => x.toUpperCase())
 
 function Header({ onNavigate, logout, title }: { onNavigate: Props['onNavigate']; logout: () => void; title: string }) {
-  return <header className="resident-header"><button className="brand-mark resident-brand" onClick={() => onNavigate('/administracion')} type="button"><span className="brand-mark__name">SIGIC</span><span className="brand-mark__tagline">Gestion Comunitaria</span></button><div className="resident-header__actions"><span className="resident-header__title">{title}</span><button className="text-button" onClick={logout} type="button">Cerrar sesión</button></div></header>
+  return <header className="resident-header"><button className="brand-mark resident-brand" onClick={() => onNavigate('/administracion')} type="button"><span className="brand-mark__name">SIGIC</span><span className="brand-mark__tagline">Gestión Comunitaria</span></button><div className="resident-header__actions"><span className="resident-header__title">{title}</span><button className="text-button" onClick={logout} type="button">Cerrar sesión</button></div></header>
 }
 function ErrorBox({ value }: { value: string }) { return value ? <p className="auth-error-message" role="alert">{value}</p> : null }
 

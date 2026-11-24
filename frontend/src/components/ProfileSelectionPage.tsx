@@ -23,7 +23,7 @@ export function ProfileSelectionPage({
             <span className="brand-mark__tagline">Gestión Comunitaria</span>
           </div>
           <h1 id="profile-heading">Selecciona tu perfil para continuar</h1>
-          <p>Acceda al perfil correcto segun su requerimiento</p>
+          <p>Accede al perfil correcto según tu requerimiento</p>
         </header>
 
         {message && <p className="auth-error-message" role="alert">{message}</p>}
