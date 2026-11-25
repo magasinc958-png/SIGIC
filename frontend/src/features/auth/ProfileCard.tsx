@@ -1,5 +1,5 @@
 import { ProfileIcon } from './ProfileIcon'
-import type { ProfileDetails } from '../types/profile'
+import type { ProfileDetails } from '../../types/profile'
 
 type ProfileCardProps = {
   profile: ProfileDetails

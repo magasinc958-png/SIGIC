@@ -1,10 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ApiError, getCurrentUser, login as loginRequest, type AuthUser } from '../services/api'
-import { profileRoles, type UserProfile } from '../types/profile'
+import { ApiError, getCurrentUser, login as loginRequest, type AuthUser } from '../../services/api'
+import { profileRoles, type UserProfile } from '../../types/profile'
 
 const SESSION_KEY = 'sigic.session'
-type StoredSession = { accessToken: string; user: AuthUser }
+type StoredSession = {
+  accessToken: string
+  user: AuthUser
+}
 type AuthContextValue = {
   session: StoredSession | null
   isHydrating: boolean
@@ -44,7 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true
     if (!session?.accessToken) {
-      queueMicrotask(() => { if (active) setIsHydrating(false) })
+      queueMicrotask(() => {
+        if (active) setIsHydrating(false)
+      })
       return () => { active = false }
     }
     getCurrentUser(session.accessToken)
@@ -56,26 +61,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch((error: unknown) => {
         if (!active) return
-        logout(error instanceof ApiError && error.status === 401 ? 'Tu sesión expiró. Inicia sesión nuevamente.' : 'No se pudo validar tu sesión.')
+        const message =
+          error instanceof ApiError && error.status === 401
+            ? 'Tu sesión expiró. Inicia sesión nuevamente.'
+            : 'No se pudo validar tu sesión.'
+        logout(message)
       })
-      .finally(() => { if (active) setIsHydrating(false) })
-    return () => { active = false }
+      .finally(() => {
+        if (active) setIsHydrating(false)
+      })
+    return () => {
+      active = false
+    }
   }, [logout, session?.accessToken])
 
-  const login = useCallback(async (email: string, password: string, selectedProfile: UserProfile) => {
-    const result = await loginRequest(email, password)
-    if (result.user.rol !== profileRoles[selectedProfile]) {
-      logout('El perfil seleccionado no coincide con el rol de esta cuenta.')
-      throw new ApiError(403, 'El perfil seleccionado no coincide con el rol de esta cuenta.')
-    }
-    const next = { accessToken: result.accessToken, user: result.user }
-    persistSession(next)
-    setIsHydrating(true)
-    setSession(next)
-    setSessionMessage('')
-  }, [logout])
+  const login = useCallback(
+    async (email: string, password: string, selectedProfile: UserProfile) => {
+      const result = await loginRequest(email, password)
+      if (result.user.rol !== profileRoles[selectedProfile]) {
+        const message = 'El perfil seleccionado no coincide con el rol de esta cuenta.'
+        logout(message)
+        throw new ApiError(403, message)
+      }
 
-  const value = useMemo(() => ({ session, isHydrating, sessionMessage, login, logout }), [session, isHydrating, sessionMessage, login, logout])
+      const next: StoredSession = {
+        accessToken: result.accessToken,
+        user: result.user,
+      }
+      persistSession(next)
+      setIsHydrating(true)
+      setSession(next)
+      setSessionMessage('')
+    },
+    [logout],
+  )
+
+  const value = useMemo(() => ({
+    session,
+    isHydrating,
+    sessionMessage,
+    login,
+    logout,
+  }), [session, isHydrating, sessionMessage, login, logout])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

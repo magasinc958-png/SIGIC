@@ -13,6 +13,7 @@ import { HttpError } from "../middleware/errors.js";
 import {
   adminIncidentQuerySchema,
   areaIdSchema,
+  assignmentIdSchema,
   assignmentQuerySchema,
   createAreaSchema,
   createAssignmentSchema,
@@ -28,149 +29,20 @@ import {
   workerIdSchema,
   workerQuerySchema
 } from "../schemas.js";
+import {
+  activityInclude,
+  assignmentInclude,
+  incidentInclude,
+  serializeActivity,
+  serializeArea,
+  serializeAssignment,
+  serializeIncident,
+  serializeWorker,
+  workerInclude
+} from "./admin/serializers.js";
 
 export const adminRouter = Router();
 adminRouter.use(authenticate, authorize(RolUsuario.ADMINISTRACION));
-
-const assignmentInclude = {
-  area: { select: { idArea: true, nombre: true } },
-  operativo: {
-    select: { idOperativo: true, nombre: true, telefono: true, turno: true, activo: true }
-  },
-  administradorAsignador: {
-    select: {
-      idUsuario: true,
-      usuario: { select: { nombre: true, email: true } }
-    }
-  }
-} as const;
-
-type AssignmentRecord = Prisma.AsignacionIncidenciaGetPayload<{
-  include: typeof assignmentInclude;
-}>;
-
-const incidentInclude = {
-  residente: {
-    select: {
-      idUsuario: true,
-      manzana: true,
-      villa: true,
-      usuario: { select: { nombre: true, email: true, telefono: true } }
-    }
-  },
-  tipo: { select: { idTipo: true, nombre: true, codigoPrefijo: true } },
-  ubicacion: {
-    select: {
-      idUbicacion: true,
-      manzana: true,
-      villa: true,
-      calle: true,
-      referencia: true,
-      latitud: true,
-      longitud: true
-    }
-  },
-  asignaciones: {
-    include: assignmentInclude,
-    orderBy: { fechaInicio: "desc" as const }
-  }
-} as const;
-
-type IncidentRecord = Prisma.IncidenciaGetPayload<{
-  include: typeof incidentInclude;
-}>;
-
-function serializeLocation(location: IncidentRecord["ubicacion"]) {
-  if (!location) return null;
-  return {
-    id: location.idUbicacion.toString(),
-    manzana: location.manzana,
-    villa: location.villa,
-    calle: location.calle,
-    referencia: location.referencia,
-    latitud: location.latitud?.toString() ?? null,
-    longitud: location.longitud?.toString() ?? null
-  };
-}
-
-function serializeAssignment(assignment: AssignmentRecord) {
-  return {
-    id: assignment.idAsignacion.toString(),
-    idIncidencia: assignment.idIncidencia.toString(),
-    estado: assignment.estado,
-    fechaInicio: assignment.fechaInicio,
-    fechaFin: assignment.fechaFin,
-    observacion: assignment.observacion,
-    area: {
-      id: assignment.area.idArea.toString(),
-      nombre: assignment.area.nombre
-    },
-    operativo: assignment.operativo
-      ? {
-          id: assignment.operativo.idOperativo.toString(),
-          nombre: assignment.operativo.nombre,
-          telefono: assignment.operativo.telefono,
-          turno: assignment.operativo.turno,
-          activo: assignment.operativo.activo
-        }
-      : null,
-    administrador: {
-      id: assignment.administradorAsignador.idUsuario.toString(),
-      nombre: assignment.administradorAsignador.usuario.nombre,
-      email: assignment.administradorAsignador.usuario.email
-    }
-  };
-}
-
-function serializeIncident(incident: IncidentRecord) {
-  return {
-    id: incident.idIncidencia.toString(),
-    codigo: incident.codigo,
-    titulo: incident.titulo,
-    descripcion: incident.descripcion,
-    estado: incident.estado,
-    fechaCreacion: incident.fechaCreacion,
-    fechaActualizacion: incident.fechaActualizacion,
-    fechaObjetivo: incident.fechaObjetivo,
-    fechaResolucion: incident.fechaResolucion,
-    tipo: incident.tipo,
-    residente: {
-      id: incident.residente.idUsuario.toString(),
-      nombre: incident.residente.usuario.nombre,
-      email: incident.residente.usuario.email,
-      telefono: incident.residente.usuario.telefono,
-      manzana: incident.residente.manzana,
-      villa: incident.residente.villa
-    },
-    ubicacion: serializeLocation(incident.ubicacion),
-    asignaciones: incident.asignaciones.map(serializeAssignment)
-  };
-}
-
-function serializeArea(area: { idArea: bigint; nombre: string; descripcion: string | null }) {
-  return { id: area.idArea.toString(), nombre: area.nombre, descripcion: area.descripcion };
-}
-
-function serializeWorker(worker: {
-  idOperativo: bigint;
-  idArea: bigint;
-  nombre: string;
-  telefono: string | null;
-  turno: string | null;
-  activo: boolean;
-  area: { idArea: bigint; nombre: string };
-}) {
-  return {
-    id: worker.idOperativo.toString(),
-    nombre: worker.nombre,
-    telefono: worker.telefono,
-    turno: worker.turno,
-    activo: worker.activo,
-    area: { id: worker.area.idArea.toString(), nombre: worker.area.nombre }
-  };
-}
-
-const workerInclude = { area: { select: { idArea: true, nombre: true } } } as const;
 
 adminRouter.get("/incidents", async (request, response) => {
   const { page, limit, estado, idTipo, codigo } = adminIncidentQuerySchema.parse(request.query);
@@ -219,7 +91,10 @@ adminRouter.post("/areas", async (request, response) => {
 adminRouter.patch("/areas/:id", async (request, response) => {
   const idArea = areaIdSchema.parse(request.params.id);
   const input = updateAreaSchema.parse(request.body);
-  const area = await prisma.areaOperativa.update({ where: { idArea }, data: input });
+  const area = await prisma.areaOperativa.update({
+    where: { idArea },
+    data: input
+  });
   response.json({ area: serializeArea(area) });
 });
 
@@ -323,7 +198,10 @@ adminRouter.post("/incidents/:id/assignments", async (request, response) => {
 
   try {
     const assignment = await prisma.$transaction(async (transaction) => {
-      const incident = await transaction.incidencia.findUnique({ where: { idIncidencia }, select: { idIncidencia: true } });
+      const incident = await transaction.incidencia.findUnique({
+        where: { idIncidencia },
+        select: { idIncidencia: true }
+      });
       if (!incident) throw new HttpError(404, "No se encontró la incidencia solicitada.");
 
       const area = await transaction.areaOperativa.findUnique({ where: { idArea: input.idArea }, select: { idArea: true } });
@@ -517,7 +395,7 @@ adminRouter.post("/incidents/:id/resolve", async (request, response) => {
 });
 
 adminRouter.patch("/assignments/:id/status", async (request, response) => {
-  const idAsignacion = workerIdSchema.parse(request.params.id);
+  const idAsignacion = assignmentIdSchema.parse(request.params.id);
   const input = assignmentLifecycleSchema.parse(request.body);
   const idUsuario = BigInt(request.user!.id);
   const fechaFin = new Date();
@@ -564,7 +442,7 @@ adminRouter.patch("/assignments/:id/status", async (request, response) => {
 });
 
 adminRouter.post("/assignments/:id/reassign", async (request, response) => {
-  const idAsignacion = workerIdSchema.parse(request.params.id);
+  const idAsignacion = assignmentIdSchema.parse(request.params.id);
   const input = createAssignmentSchema.parse(request.body);
   const idAdministrador = BigInt(request.user!.id);
   const fechaFin = new Date();
@@ -651,29 +529,6 @@ adminRouter.post("/assignments/:id/reassign", async (request, response) => {
   }
 });
 
-const activityInclude = {
-  usuarioCreador: { select: { idUsuario: true, nombre: true } },
-  operativo: { select: { idOperativo: true, nombre: true } }
-} as const;
-
-function serializeActivity(activity: Prisma.ActividadGetPayload<{ include: typeof activityInclude }>) {
-  return {
-    id: activity.idActividad.toString(),
-    idIncidencia: activity.idIncidencia?.toString() ?? null,
-    titulo: activity.titulo,
-    descripcion: activity.descripcion,
-    estado: activity.estado,
-    fechaProgramada: activity.fechaProgramada,
-    fechaInicio: activity.fechaInicio,
-    fechaFinalizacion: activity.fechaFinalizacion,
-    fechaCreacion: activity.fechaCreacion,
-    usuarioCreador: { id: activity.usuarioCreador.idUsuario.toString(), nombre: activity.usuarioCreador.nombre },
-    operativo: activity.operativo
-      ? { id: activity.operativo.idOperativo.toString(), nombre: activity.operativo.nombre }
-      : null
-  };
-}
-
 adminRouter.post("/incidents/:id/observations", async (request, response) => {
   const idIncidencia = incidentIdSchema.parse(request.params.id);
   const input = createObservationSchema.parse(request.body);
@@ -682,7 +537,10 @@ adminRouter.post("/incidents/:id/observations", async (request, response) => {
     const incident = await transaction.incidencia.findUnique({ where: { idIncidencia }, select: { idIncidencia: true } });
     if (!incident) throw new HttpError(404, "No se encontró la incidencia solicitada.");
     if (input.idOperativo !== null && input.idOperativo !== undefined) {
-      const worker = await transaction.personalOperativo.findUnique({ where: { idOperativo: input.idOperativo }, select: { idOperativo: true } });
+      const worker = await transaction.personalOperativo.findUnique({
+        where: { idOperativo: input.idOperativo },
+        select: { idOperativo: true }
+      });
       if (!worker) throw new HttpError(404, "El trabajador no existe.");
     }
     return transaction.historialIncidencia.create({
@@ -713,10 +571,16 @@ adminRouter.post("/incidents/:id/activities", async (request, response) => {
   const input = createActivitySchema.parse(request.body);
   const idUsuarioCreador = BigInt(request.user!.id);
   const activity = await prisma.$transaction(async (transaction) => {
-    const incident = await transaction.incidencia.findUnique({ where: { idIncidencia }, select: { idIncidencia: true } });
+    const incident = await transaction.incidencia.findUnique({
+      where: { idIncidencia },
+      select: { idIncidencia: true }
+    });
     if (!incident) throw new HttpError(404, "No se encontró la incidencia solicitada.");
     if (input.idOperativo !== null && input.idOperativo !== undefined) {
-      const worker = await transaction.personalOperativo.findUnique({ where: { idOperativo: input.idOperativo }, select: { idOperativo: true } });
+      const worker = await transaction.personalOperativo.findUnique({
+        where: { idOperativo: input.idOperativo },
+        select: { idOperativo: true }
+      });
       if (!worker) throw new HttpError(404, "El trabajador no existe.");
     }
     const created = await transaction.actividad.create({

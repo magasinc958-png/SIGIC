@@ -1,4 +1,4 @@
-import type { UserProfile } from '../types/profile'
+import type { UserProfile } from '../../types/profile'
 
 type ProfileIconProps = {
   profile: UserProfile

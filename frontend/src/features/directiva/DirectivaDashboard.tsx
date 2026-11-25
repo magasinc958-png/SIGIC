@@ -1,7 +1,15 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAuth } from '../auth/AuthContext'
-import { ApiError, getDirectivaIncident, getDirectivaIncidents, getDirectivaSummary, type DirectivaIncident, type DirectivaSummary, type IncidentStatus } from '../services/api'
+import {
+  ApiError,
+  getDirectivaIncident,
+  getDirectivaIncidents,
+  getDirectivaSummary,
+  type DirectivaIncident,
+  type DirectivaSummary,
+  type IncidentStatus,
+} from '../../services/api'
 
 type Props = { path: string; onNavigate: (path: string) => void }
 const statuses: IncidentStatus[] = ['PENDIENTE', 'EN_REVISION', 'ASIGNADA', 'EN_PROCESO', 'ATENDIDA', 'RESUELTA', 'RECHAZADA']

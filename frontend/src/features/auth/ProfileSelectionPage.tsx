@@ -1,5 +1,5 @@
 import { ProfileCard } from './ProfileCard'
-import { profiles, type ProfileDetails, type UserProfile } from '../types/profile'
+import { profiles, type ProfileDetails, type UserProfile } from '../../types/profile'
 
 type ProfileSelectionPageProps = {
   onSelectProfile: (profile: UserProfile) => void

@@ -1,5 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { ApiError, createIncident, getIncidentTypes, getMyIncident, getMyIncidents, type Incident, type IncidentType } from '../services/api'
+import {
+  ApiError,
+  createIncident,
+  getIncidentTypes,
+  getMyIncident,
+  getMyIncidents,
+  type Incident,
+  type IncidentType,
+} from '../../services/api'
 import { useAuth } from '../auth/AuthContext'
 
 type ResidentDashboardProps = { path: string; onNavigate: (path: string) => void }

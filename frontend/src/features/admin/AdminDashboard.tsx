@@ -2,7 +2,32 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth } from '../auth/AuthContext'
-import { ApiError, addActivity, addObservation, changeIncidentStatus, createArea, createAssignment, createWorker, getActivities, getAdminIncident, getAdminIncidents, getAreas, getHistory, getWorkers, reassign, resolveIncident, updateArea, updateAssignmentStatus, updateWorker, type Activity, type AdminAssignment, type AdminIncident, type Area, type HistoryEvent, type Worker } from '../services/api'
+import {
+  ApiError,
+  addActivity,
+  addObservation,
+  changeIncidentStatus,
+  createArea,
+  createAssignment,
+  createWorker,
+  getActivities,
+  getAdminIncident,
+  getAdminIncidents,
+  getAreas,
+  getHistory,
+  getWorkers,
+  reassign,
+  resolveIncident,
+  updateArea,
+  updateAssignmentStatus,
+  updateWorker,
+  type Activity,
+  type AdminAssignment,
+  type AdminIncident,
+  type Area,
+  type HistoryEvent,
+  type Worker,
+} from '../../services/api'
 
 type Props = { path: string; onNavigate: (path: string) => void }
 const statuses = ['PENDIENTE', 'EN_REVISION', 'ASIGNADA', 'EN_PROCESO', 'ATENDIDA', 'RESUELTA', 'RECHAZADA']

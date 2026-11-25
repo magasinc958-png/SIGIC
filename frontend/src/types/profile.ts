@@ -10,9 +10,24 @@ export type ProfileDetails = {
 }
 
 export const profiles: ProfileDetails[] = [
-  { id: 'resident', name: 'Residente', description: 'Reporta incidencias y revisa comunicados de tu urbanización.', loginLabel: 'Ingresar como Residente' },
-  { id: 'board', name: 'Directiva', description: 'Monitorea el estado general y analiza los reportes comunitarios.', loginLabel: 'Ingresar como Directiva' },
-  { id: 'administration', name: 'Administración', description: 'Gestiona usuarios, asignaciones y la resolución de incidencias.', loginLabel: 'Ingresar como Administración' },
+  {
+    id: 'resident',
+    name: 'Residente',
+    description: 'Reporta incidencias y revisa comunicados de tu urbanización.',
+    loginLabel: 'Ingresar como Residente',
+  },
+  {
+    id: 'board',
+    name: 'Directiva',
+    description: 'Monitorea el estado general y analiza los reportes comunitarios.',
+    loginLabel: 'Ingresar como Directiva',
+  },
+  {
+    id: 'administration',
+    name: 'Administración',
+    description: 'Gestiona usuarios, asignaciones y la resolución de incidencias.',
+    loginLabel: 'Ingresar como Administración',
+  },
 ]
 
 export const profileRoles: Record<UserProfile, BackendRole> = {

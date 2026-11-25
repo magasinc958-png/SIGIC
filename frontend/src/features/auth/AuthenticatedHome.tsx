@@ -1,5 +1,5 @@
-import { useAuth } from '../auth/AuthContext'
-import { getProfileDetails, roleProfiles } from '../types/profile'
+import { useAuth } from './AuthContext'
+import { getProfileDetails, roleProfiles } from '../../types/profile'
 
 export function AuthenticatedHome() {
   const { session, logout } = useAuth()

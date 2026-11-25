@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { ApiError } from '../services/api'
-import { useAuth } from '../auth/AuthContext'
-import { getProfileDetails, type UserProfile } from '../types/profile'
+import { ApiError } from '../../services/api'
+import { useAuth } from './AuthContext'
+import { getProfileDetails, type UserProfile } from '../../types/profile'
 
 type LoginPageProps = {
   profile: UserProfile
